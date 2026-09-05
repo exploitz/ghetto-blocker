@@ -1,0 +1,97 @@
+{
+  "name": "ghetto-blocker",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "A system-level, uBlock-Origin-style ad/tracker blocker that runs as a local MITM filtering proxy. Works in any Chromium browser (Vivaldi) without a browser extension.",
+  "main": "dist/electron-main.cjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p extension-src/tsconfig.json",
+    "test": "vitest run",
+    "update-lists": "tsx scripts/update-lists.ts",
+    "build": "node esbuild.config.mjs",
+    "electron:dev": "npm run build && electron dist/electron-main.cjs",
+    "dist": "npm run build && electron-builder",
+    "release": "npm run build && electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "@ghostery/adblocker": "^2.18.0",
+    "@ghostery/adblocker-content": "^2.18.0",
+    "@ghostery/adblocker-extended-selectors": "^2.18.0",
+    "electron-updater": "^6.8.9",
+    "http-mitm-proxy": "^1.1.0",
+    "tldts": "^7.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "build": {
+    "appId": "com.ghettoblocker.app",
+    "productName": "ghetto-blocker",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "dist/electron-main.cjs"
+    ],
+    "extraResources": [
+      {
+        "from": "extension",
+        "to": "extension"
+      },
+      {
+        "from": "public/dashboard",
+        "to": "public/dashboard"
+      },
+      {
+        "from": "scripts/install-ca.ps1",
+        "to": "scripts/install-ca.ps1"
+      },
+      {
+        "from": "electron/tray-icon.png",
+        "to": "tray-icon.png"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "runAfterFinish": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "exploitz",
+        "repo": "ghetto-blocker",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/exploitz/ghetto-blocker.git"
+  }
+}

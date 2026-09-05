@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ghetto-blocker</title>
+  <!-- MV3: no inline scripts. All JS in popup.js -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 260px;
+      background: #05060a;
+      color: #d7f5ff;
+      font: 13px/1.5 Consolas, "Cascadia Mono", "Courier New", monospace;
+      padding: 14px;
+    }
+    header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    header h1 { font-size: 13px; letter-spacing: 0.12em; color: #00f0ff; flex: 1; text-transform: uppercase; }
+    .status { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #8fabbd; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #444; flex-shrink: 0; }
+    .dot.online  { background: #00f0ff; box-shadow: 0 0 5px rgba(0,240,255,0.7); }
+    .dot.offline { background: #ff3b5c; }
+
+    .site {
+      margin: 12px 0;
+      padding: 10px 12px;
+      background: #0a0d14;
+      border: 1px solid rgba(0,240,255,0.25);
+      clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    }
+    .site .host { font-size: 12px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .site .count { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
+    .site .count b { font-size: 26px; color: #00f0ff; text-shadow: 0 0 8px rgba(0,240,255,0.7); line-height: 1; }
+    .site .count span { font-size: 11px; color: #8fabbd; letter-spacing: 0.1em; text-transform: uppercase; }
+    .site.allowed { border-color: rgba(255,230,0,0.5); }
+    .site.allowed .count b { color: #ffe600; text-shadow: none; }
+    .site .state { font-size: 11px; color: #ffe600; margin-top: 4px; }
+
+    .btn {
+      display: block;
+      width: 100%;
+      background: #0e1320;
+      border: 1px solid rgba(0,240,255,0.25);
+      color: #d7f5ff;
+      cursor: pointer;
+      font: 12px Consolas, "Cascadia Mono", "Courier New", monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 8px 12px;
+      text-align: left;
+      margin-bottom: 6px;
+      clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+      transition: border-color 0.12s, color 0.12s, background 0.12s;
+    }
+    .btn:hover { border-color: #00f0ff; color: #fff; background: #111a2a; }
+    .btn:disabled { opacity: 0.5; cursor: default; }
+    .btn-allow.on { border-color: #ffe600; color: #ffe600; }
+    .btn-pause.on { border-color: #ffe600; color: #ffe600; }
+    .btn-pick  { border-color: #00f0ff; color: #00f0ff; }
+    .btn-zap { border-color: #ff2bd6; color: #ff2bd6; }
+    .btn-zap:hover { border-color: #ff2bd6; background: #1a0f1a; }
+    .btn-dash { color: #8fabbd; font-size: 11px; }
+    .sep { height: 1px; background: rgba(0,240,255,0.15); margin: 8px 0 10px; }
+    #msg { display: none; font-size: 11px; color: #ffe600; margin-top: 6px; }
+    #msg.err { color: #ff3b5c; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ghetto-blocker</h1>
+    <div class="status"><div class="dot" id="statusDot"></div><span id="statusText">…</span></div>
+  </header>
+
+  <div class="site" id="site">
+    <div class="host" id="pageHost">–</div>
+    <div class="count"><b id="blockedCount">0</b><span>blocked on this page</span></div>
+    <div class="state" id="siteState"></div>
+  </div>
+
+  <button class="btn btn-allow" id="btnAllow">Allow this site</button>
+  <button class="btn btn-pause" id="btnPause">Pause blocking</button>
+  <div class="sep"></div>
+  <button class="btn btn-pick" id="btnPick">Pick element to block</button>
+  <button class="btn btn-zap"  id="btnZap">Zap element (this page)</button>
+  <button class="btn btn-dash" id="btnDashboard">Open dashboard</button>
+
+  <div id="msg"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

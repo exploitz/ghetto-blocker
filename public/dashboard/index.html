@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="terminal">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ghetto-blocker</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="themes.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================================================
+       RAIL: identity, master controls, navigation
+       ============================================================ -->
+  <aside class="rail">
+    <div class="brand">
+      <img src="icon.svg" alt="" class="logo">
+      <h1>ghetto-blocker</h1>
+    </div>
+
+    <div class="status-row">
+      <div class="status-badge" id="statusBadge">ACTIVE</div>
+      <button id="btnPause" class="btn-primary btn-pause">Pause</button>
+    </div>
+
+    <div class="toggles">
+      <label><input type="checkbox" id="chkCosmetics" checked> Cosmetics</label>
+      <label><input type="checkbox" id="chkAntiAnalytics" checked> Anti-tracking</label>
+      <label><input type="checkbox" id="chkStripCSP" checked> Strip CSP</label>
+      <label title="Desktop app only"><input type="checkbox" id="chkAutostart"> Start at login</label>
+      <label title="Let ads load hidden and click them in the background to poison ad-network profiles"><input type="checkbox" id="chkAdNauseam"> AdNauseam</label>
+    </div>
+
+    <nav class="views">
+      <button class="nav-btn active" data-view="overview">Overview</button>
+      <button class="nav-btn" data-view="rules">Rules</button>
+      <button class="nav-btn" data-view="sites">Sites</button>
+      <button class="nav-btn" data-view="vault">Vault</button>
+    </nav>
+
+    <div class="rail-foot">
+      <div class="lists-block">
+        <div class="field-label">Filter lists</div>
+        <div class="meta" id="listsAge">checking…</div>
+        <button id="btnUpdateLists">Update lists</button>
+      </div>
+      <label class="field-label" for="themeSelect">Theme</label>
+      <select id="themeSelect" title="Theme">
+        <option value="terminal">Terminal</option>
+        <option value="cyberpunk">Cyberpunk</option>
+        <option value="daylight">Daylight</option>
+      </select>
+      <div class="update-block">
+        <div class="meta" id="versionLine">v–</div>
+        <button id="btnUpdate" hidden>Check for updates</button>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+
+    <!-- ============================================================
+         OVERVIEW
+         ============================================================ -->
+    <section class="view active" id="view-overview">
+
+      <div class="counters">
+        <div class="counter"><span id="cntBlocked">0</span><label>blocked</label></div>
+        <div class="counter"><span id="cntHidden">0</span><label>cleaned</label></div>
+        <div class="counter"><span id="cntPoisoned">0</span><label>stripped</label></div>
+        <div class="counter"><span id="cntAllowed">0</span><label>allowed</label></div>
+        <div class="counter counter-click"><span id="cntClicked">0</span><label>ads clicked</label></div>
+      </div>
+      <div class="since" id="sinceLine"></div>
+
+      <div class="card graph-card">
+        <div class="card-head">
+          <h3>Activity</h3>
+          <span class="sub">last 60 seconds</span>
+          <span class="legend">
+            <i class="sw block"></i>blocked
+            <i class="sw hide"></i>cleaned
+            <i class="sw poison"></i>stripped
+          </span>
+        </div>
+        <canvas id="activityGraph" height="72"></canvas>
+      </div>
+
+      <div class="split">
+        <div class="card feed-card">
+          <div class="card-head">
+            <h3>Live feed</h3>
+            <div class="chips" id="feedChips">
+              <button class="chip active" data-filter="all">All</button>
+              <button class="chip" data-filter="block">Block</button>
+              <button class="chip" data-filter="hide">Clean</button>
+              <button class="chip" data-filter="poison">Strip</button>
+              <button class="chip" data-filter="click">Click</button>
+            </div>
+          </div>
+          <div class="feed-items" id="activityFeed" data-filter="all"></div>
+        </div>
+        <div class="card sites-card">
+          <div class="card-head"><h3>Top blocked sites</h3></div>
+          <div class="leaderboard" id="siteLeaderboard"></div>
+        </div>
+      </div>
+
+      <div class="quick">
+        <div class="card">
+          <div class="card-head"><h3>Bypass a site</h3><span class="sub">no interception</span></div>
+          <div class="input-row">
+            <input type="text" id="bypassSiteInput" placeholder="bank.com">
+            <button id="btnBypassSite">Bypass</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Report a broken site</h3></div>
+          <div class="input-row">
+            <input type="text" id="brokenHost" placeholder="example.com" style="flex:2">
+            <input type="text" id="brokenComment" placeholder="What is broken?" style="flex:3">
+            <button id="btnReport">Report</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============================================================
+         RULES
+         ============================================================ -->
+    <section class="view" id="view-rules">
+      <div class="card editor-card">
+        <div class="card-head">
+          <h3>User rules</h3>
+          <span class="sub">uBlock Origin / Adblock Plus syntax &middot; <span id="ruleCount">0</span> rules</span>
+          <div class="rules-actions">
+            <button id="btnSaveRules" class="btn-primary">Save</button>
+            <button id="btnExport">Export</button>
+            <label class="btn-file-label">Import
+              <input type="file" id="importFile" accept=".json">
+            </label>
+          </div>
+        </div>
+        <textarea id="rulesEditor" spellcheck="false" placeholder="! One rule per line. Examples:
+||ads.example.com^
+example.com##.ad-banner
+example.com##div:has-text(Sponsored)"></textarea>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         VAULT (AdNauseam)
+         ============================================================ -->
+    <section class="view" id="view-vault">
+      <div class="card list-card">
+        <div class="card-head">
+          <h3>AdNauseam vault</h3>
+          <span class="sub" id="vaultSummary">ads clicked in the background</span>
+        </div>
+        <p class="hint" id="vaultHint">AdNauseam is off. Turn it on in the rail: ads then load hidden, trackers stay blocked, and every ad found gets clicked with a random delay.</p>
+        <div class="vault" id="vaultList"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SITES
+         ============================================================ -->
+    <section class="view" id="view-sites">
+      <div class="split even">
+        <div class="card list-card">
+          <div class="card-head"><h3>Allowlist</h3><span class="sub">no filtering on these sites</span></div>
+          <div class="input-row">
+            <input type="text" id="allowlistInput" placeholder="example.com">
+            <button id="btnAddAllowlist">Allow</button>
+          </div>
+          <ul class="managed-list" id="allowlistItems"></ul>
+        </div>
+        <div class="card list-card">
+          <div class="card-head"><h3>Bypass hosts</h3><span class="sub">no HTTPS interception (banking, pinned certs)</span></div>
+          <div class="input-row">
+            <input type="text" id="bypassInput" placeholder="bank.com">
+            <button id="btnAddBypass">Add</button>
+          </div>
+          <ul class="managed-list" id="bypassItems"></ul>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="notification"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
