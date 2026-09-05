@@ -528,7 +528,10 @@ function renderVault() {
       img.loading = 'lazy';
       img.alt = e.title || '';
       img.src = '/api/adnauseam/thumb?u=' + encodeURIComponent(e.image);
-      img.addEventListener('error', () => { thumb.innerHTML = ''; thumb.appendChild(initialFor(e.host)); });
+      const fallback = () => { thumb.innerHTML = ''; thumb.appendChild(initialFor(e.host)); };
+      img.addEventListener('error', fallback);
+      // A 1x1 tracking pixel is not a creative; show the network initial instead.
+      img.addEventListener('load', () => { if (img.naturalWidth < 40 || img.naturalHeight < 40) fallback(); });
       thumb.appendChild(img);
     } else {
       thumb.appendChild(initialFor(e.host));

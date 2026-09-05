@@ -64,16 +64,21 @@ export interface AdInfo {
   title?: string;
 }
 
+/** Smaller than this and it is a tracking pixel or a spacer, not a creative. */
+const MIN_CREATIVE_SIDE = 40;
+
 function largestImage(scope: ParentNode): HTMLImageElement | null {
   let best: HTMLImageElement | null = null;
   let bestArea = 0;
   for (const img of scope.querySelectorAll('img')) {
     const src = img.currentSrc || img.src;
     if (!src || !/^https?:/i.test(src)) continue;
-    const area = (img.naturalWidth || img.width || 0) * (img.naturalHeight || img.height || 0);
-    if (area > bestArea || best === null) {
+    const w = img.naturalWidth || img.width || 0;
+    const h = img.naturalHeight || img.height || 0;
+    if (w < MIN_CREATIVE_SIDE || h < MIN_CREATIVE_SIDE) continue;
+    if (w * h > bestArea) {
       best = img;
-      bestArea = area;
+      bestArea = w * h;
     }
   }
   return best;

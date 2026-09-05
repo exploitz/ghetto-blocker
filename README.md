@@ -13,6 +13,8 @@ Works with any Chromium browser (Vivaldi, Chrome, Edge, Brave) on Windows.
 A companion extension is included; it handles the parts that need to run
 inside the page.
 
+![Dashboard overview, Cyberpunk theme](docs/screenshots/overview-cyberpunk.png)
+
 ## What it does
 
 - Blocks ad and tracker requests before they leave your machine.
@@ -113,6 +115,12 @@ Blocked requests get an empty `200` (pages don't error out) with an
 Themes: Terminal, Cyberpunk, Daylight. The window's title bar follows the
 theme.
 
+| Daylight | Terminal |
+|---|---|
+| ![Daylight theme](docs/screenshots/overview-daylight.png) | ![Terminal theme](docs/screenshots/overview-terminal.png) |
+
+![Rules editor](docs/screenshots/rules-cyberpunk.png)
+
 ## The extension
 
 The proxy only sees the HTML a server sends. Ad slots created afterwards by
@@ -137,6 +145,8 @@ and your own rules, and the extension looks for the hidden ads' click-through
 links. Each one is announced to the control server and fetched in the
 background after a random delay, at most eight a minute, with cookies, so it
 registers as a click. Pages use more bandwidth in this mode.
+
+![Vault](docs/screenshots/vault-cyberpunk.png)
 
 ## Updates
 

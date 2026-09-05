@@ -299,7 +299,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 /* ---- Vault ---- */
 #view-vault .vault-card { flex: 1; }
 .vault-stats { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 2fr); }
-.counter-wide span { font-size: 0.95rem; padding-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root[data-theme] .counter-wide span { font-size: 0.95rem; padding-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: none; }
 .hint { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
 .vault-tools { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 .vault-tools input { width: 260px; }
