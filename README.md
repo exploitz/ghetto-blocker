@@ -194,6 +194,7 @@ Read this part.
 | Ads on YouTube / HTTPS sites | QUIC is still on. |
 | Ad boxes appear after the page loads | The extension isn't loaded, or its popup dot is red (app not running). |
 | A site won't load at all | Probably certificate pinning. Add it to bypass hosts. |
+| Console shows a React hydration error (#418) | Update to 0.2.8+; the injected styles now go at the end of `<head>` so React apps hydrate cleanly. |
 | Pausing doesn't seem to change a page | Reload it; pages already open keep the CSS they were given. If ads still don't show, the browser's own blocker is doing it. |
 
 ## License

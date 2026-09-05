@@ -100,14 +100,19 @@ export function buildInjectionBlob(payload: CosmeticPayload): string {
 }
 
 /**
- * Offset at which to splice injected markup: just after `<head>`, else before
- * `</head>`, else just after `<body>`. Returns -1 when no anchor is present.
+ * Offset at which to splice injected markup: just before `</head>`, else just
+ * after `<head>`, else just after `<body>`. Returns -1 when no anchor is present.
+ *
+ * End of head rather than start: React apps that render their own `<head>`
+ * (Next.js) hydrate its children in order, and a foreign `<script>` placed
+ * before their first inline script gets paired with it and reported as a
+ * hydration mismatch (React error #418). After their nodes we are just extra.
  */
 export function findInjectionOffset(html: string): number {
+  const headClose = html.search(/<\/head\s*>/i);
+  if (headClose >= 0) return headClose;
   const headOpen = /<head[^>]*>/i.exec(html);
   if (headOpen) return headOpen.index + headOpen[0].length;
-  const headClose = html.toLowerCase().indexOf('</head>');
-  if (headClose >= 0) return headClose;
   const bodyOpen = /<body[^>]*>/i.exec(html);
   if (bodyOpen) return bodyOpen.index + bodyOpen[0].length;
   return -1;

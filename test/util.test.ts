@@ -76,8 +76,16 @@ describe('html injection', () => {
     const html = '<head></head>';
     expect(injectIntoHtml(html, { styles: '   ', scripts: [] })).toBe(html);
   });
-  it('finds a body anchor when there is no head, and -1 when there is no anchor', () => {
-    expect(findInjectionOffset('<body>hi</body>')).toBeGreaterThanOrEqual(0);
+  it('injects after the page\'s own head children, so React can hydrate its head in order', () => {
+    const html = '<html><head><meta charset="utf-8"><script>self.__next_f=[]</script><title>t</title></head><body></body></html>';
+    const out = injectIntoHtml(html, { styles: '.x{}', scripts: ['window.gb=1'] });
+    expect(out.indexOf('<style')).toBeGreaterThan(out.indexOf('<title>t</title>'));
+    expect(out.indexOf('<style')).toBeLessThan(out.indexOf('</head>'));
+    expect(out.indexOf('window.gb=1')).toBeLessThan(out.indexOf('</head>'));
+  });
+  it('falls back to the start of head, then body, and -1 when there is no anchor', () => {
+    expect(findInjectionOffset('<head><meta>')).toBe('<head>'.length);
+    expect(findInjectionOffset('<body>hi</body>')).toBe('<body>'.length);
     expect(findInjectionOffset('no tags here')).toBe(-1);
   });
 });
