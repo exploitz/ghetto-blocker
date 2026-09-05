@@ -9,3 +9,6 @@ extension/cosmetics.js
 # Runtime data (CA private key MUST NOT be committed; cached engine is regenerable)
 .ghetto-blocker/
 *.bin
+
+# Local notes and plans, not part of the public repo
+docs/

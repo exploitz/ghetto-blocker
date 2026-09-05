@@ -144,11 +144,6 @@ The app checks GitHub Releases shortly after launch and every six hours,
 downloads new versions in the background, and offers "Restart to update" in
 the tray and the dashboard. The version line in the rail shows the state.
 
-## Development
-
-Building from source, the headless mode, and how releases are published are
-in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
-
 ## Security
 
 Read this part.
