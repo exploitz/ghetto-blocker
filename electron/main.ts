@@ -117,7 +117,14 @@ function setupAutoUpdate(ctx: BootstrapResult['ctx']): void {
         .show();
     }
   });
-  autoUpdater.on('error', (err) => updates.setStatus({ state: 'error', message: err.message }));
+  autoUpdater.on('error', (err) => {
+    const firstLine = (err.message ?? String(err)).split('\n')[0]?.slice(0, 160) ?? 'unknown error';
+    updates.setStatus({ state: 'error', message: firstLine });
+    // A release that is still being uploaded has no latest.yml yet; look again shortly.
+    if (/latest\.yml|ERR_UPDATER_LATEST_VERSION_NOT_FOUND/.test(err.message ?? '')) {
+      setTimeout(() => autoUpdater.checkForUpdates().catch(() => { /* status carries it */ }), 3 * 60 * 1000);
+    }
+  });
 
   updates.check = async () => {
     await autoUpdater.checkForUpdates();
