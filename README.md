@@ -247,12 +247,14 @@ Publishing a release (maintainer):
 ```powershell
 # bump "version" in package.json, then, with a GitHub token that can write releases:
 $env:GH_TOKEN = "<token>"
-npm run release        # build + electron-builder --win --publish always
+npm run release        # build, create the GitHub release, upload installer + latest.yml + blockmap
 ```
 
-`npm run release` uploads the NSIS installer, its blockmap and `latest.yml`
-to a GitHub release tagged `v<version>`; installed apps pick it up on their
-next check.
+`scripts/release.mjs` creates the release `v<version>` first (electron-builder
+races itself when it creates the release from two artifacts at once), runs
+electron-builder with `--publish always`, then verifies `latest.yml` and the
+blockmap are attached with the names electron-updater expects, uploading them
+itself if not. Installed apps pick the release up on their next check.
 
 ## Anti-analytics
 
@@ -421,7 +423,8 @@ scripts/
   install-ca.ps1          Trust the CA (Windows, requires admin)
   uninstall-ca.ps1        Remove the CA from trust store
   install-autostart.ps1   Headless autostart via Windows Scheduled Task
-  update-lists.ts         Drop the cached engine (triggers re-download)
+  update-lists.ts         Drop the cached engines (triggers re-download)
+  release.mjs             Publish the current version to GitHub Releases
 
 build/
   icon.ico           Multi-size ICO for the NSIS installer

@@ -1,6 +1,6 @@
 {
   "name": "ghetto-blocker",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "A system-level, uBlock-Origin-style ad/tracker blocker that runs as a local MITM filtering proxy. Works in any Chromium browser (Vivaldi) without a browser extension.",
@@ -17,7 +17,7 @@
     "build": "node esbuild.config.mjs",
     "electron:dev": "npm run build && electron dist/electron-main.cjs",
     "dist": "npm run build && electron-builder",
-    "release": "npm run build && electron-builder --win --publish always"
+    "release": "npm run build && node scripts/release.mjs"
   },
   "dependencies": {
     "@ghostery/adblocker": "^2.18.0",
