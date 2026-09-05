@@ -10,5 +10,5 @@ extension/cosmetics.js
 .ghetto-blocker/
 *.bin
 
-# Local notes and plans, not part of the public repo
-docs/
+# Internal planning notes, not part of the public repo
+docs/plans/
