@@ -193,7 +193,7 @@ Read this part.
 | Counters never move | The browser wasn't started with the proxy flags. Quit it and use "Launch a browser" on the overview. |
 | Ads on YouTube / HTTPS sites | QUIC is still on. |
 | Ad boxes appear after the page loads | The extension isn't loaded, or its popup dot is red (app not running). |
-| A site won't load at all | Probably certificate pinning. Add it to bypass hosts. |
+| A site won't load, or a streaming app (ChatGPT) won't respond | Add its host to Sites -> Bypass hosts. Bypassed hosts are tunneled raw with no interception, so they behave exactly as with no proxy. ChatGPT is bypassed by default. |
 | Console shows a React hydration error (#418) | Update to 0.2.8+; the injected styles now go at the end of `<head>` so React apps hydrate cleanly. |
 | Pausing doesn't seem to change a page | Reload it; pages already open keep the CSS they were given. If ads still don't show, the browser's own blocker is doing it. |
 

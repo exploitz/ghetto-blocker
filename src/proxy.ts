@@ -1,3 +1,4 @@
+import net from 'node:net';
 import { Proxy } from 'http-mitm-proxy';
 import type { IContext } from 'http-mitm-proxy';
 import { parse as parseDomain } from 'tldts';
@@ -20,6 +21,35 @@ import {
 /** Build (but do not start) the filtering MITM proxy. */
 export function createProxy(ctx: RuntimeContext): { proxy: Proxy } {
   const proxy = new Proxy();
+
+  // Bypass hosts are tunneled RAW: the CONNECT is spliced straight to the
+  // origin with no TLS interception, so the browser gets the real certificate,
+  // native HTTP/2, and an untouched byte stream. This is what makes
+  // cert-pinned apps and MITM-sensitive sites (some streaming apps) work, and
+  // it is the only way to guarantee a site behaves exactly as it would with no
+  // proxy at all. Returning without calling `callback` stops the library's
+  // default decrypt-and-inspect path for this connection.
+  proxy.onConnect((req, socket, head, callback) => {
+    const target = String(req.url ?? '');
+    const sep = target.lastIndexOf(':');
+    const host = sep >= 0 ? target.slice(0, sep) : target;
+    const port = sep >= 0 ? Number(target.slice(sep + 1)) : 443;
+    // Only bypass hosts tunnel raw; everything else takes the normal MITM path
+    // (where the paused / allowlist checks decide what is filtered).
+    if (!host || !Number.isInteger(port) || !isBypassed(host, ctx.settings.bypassHosts)) {
+      return callback();
+    }
+    const upstream = net.connect(port, host, () => {
+      socket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+      if (head && head.length) upstream.write(head);
+      upstream.pipe(socket);
+      socket.pipe(upstream);
+    });
+    const drop = (): void => { upstream.destroy(); socket.destroy(); };
+    upstream.on('error', drop);
+    socket.on('error', drop);
+    // Do NOT call callback(): that would hand the connection to the MITM path.
+  });
 
   proxy.onError((icontext, err) => {
     // Client/server socket resets are common and benign; don't spam the log.

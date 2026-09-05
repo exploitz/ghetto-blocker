@@ -65,7 +65,10 @@ export const DEFAULT_SETTINGS: Settings = {
   autostart: false,
   adNauseam: false,
   allowlist: [],
-  bypassHosts: [],
+  // MITM-incompatible by default: cert-pinned or streaming apps that misbehave
+  // when their TLS is terminated. Bypass hosts are tunneled raw (no
+  // interception), so these connect exactly as they would with no proxy.
+  bypassHosts: ['chatgpt.com'],
 };
 
 async function ensureDir(filePath: string): Promise<void> {

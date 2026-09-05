@@ -46,8 +46,9 @@ export const config: GhettoBlockerConfig = {
   // Add hosts that misbehave under TLS interception here (cert-pinned apps,
   // banking sites). Matched by exact host or subdomain suffix - e.g. 'chase.com'
   // also covers 'secure.chase.com'. These are never filtered or modified.
-  // SHORTCUT: no per-host TLS passthrough tunnel; a bypassed host is filtered
-  // out entirely rather than tunneled raw. Upgrade: serve a PAC file returning
-  // DIRECT for these hosts. Trigger: a site/app that fails to connect via proxy.
+  // Bypass hosts are tunneled raw at the CONNECT layer (see proxy.ts): the
+  // connection is spliced straight to the origin with no TLS interception, so
+  // cert-pinned apps and MITM-sensitive streaming apps behave exactly as they
+  // would with no proxy. The runtime default lives in state.ts DEFAULT_SETTINGS.
   bypassHosts: [],
 };

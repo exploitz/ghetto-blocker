@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync, zstdCompressSync } from 'node:zlib';
+import net from 'node:net';
 import { FiltersEngine } from '@ghostery/adblocker';
 import { createProxy } from '../src/proxy.js';
 import { createRuntimeContext } from '../src/runtime.js';
@@ -204,6 +205,41 @@ describe('proxy integration over HTTP', () => {
       expect(ctx.stats.getVault()[0]).toMatchObject({ page: 'https://news.example/', url: clickUrl });
     } finally {
       await ctx.updateSettings({ adNauseam: false });
+    }
+  });
+
+  it('tunnels a bypass host raw: bytes pass through untouched, no MITM', async () => {
+    // A plain TCP echo origin. A raw CONNECT tunnel splices client<->origin, so
+    // whatever we send comes straight back; the proxy never sees or rewrites it.
+    const echo = net.createServer((sock) => sock.pipe(sock));
+    await new Promise<void>((r) => echo.listen(0, '127.0.0.1', r));
+    const echoPort = (echo.address() as AddressInfo).port;
+    await ctx.updateSettings({ bypassHosts: ['127.0.0.1'] });
+    try {
+      const roundtrip = await new Promise<string>((resolve, reject) => {
+        const raw = net.connect(proxyPort, '127.0.0.1', () => {
+          raw.write(`CONNECT 127.0.0.1:${echoPort} HTTP/1.1\r\nHost: 127.0.0.1:${echoPort}\r\n\r\n`);
+        });
+        let established = false;
+        let out = '';
+        raw.on('data', (chunk) => {
+          if (!established) {
+            const text = chunk.toString('latin1');
+            expect(text).toMatch(/^HTTP\/1\.1 200/); // tunnel opened
+            established = true;
+            raw.write('PING-THROUGH-RAW-TUNNEL');
+            return;
+          }
+          out += chunk.toString('latin1');
+          if (out.includes('PING-THROUGH-RAW-TUNNEL')) resolve(out);
+        });
+        raw.on('error', reject);
+        setTimeout(() => reject(new Error('no echo; established=' + established)), 5000);
+      });
+      expect(roundtrip).toBe('PING-THROUGH-RAW-TUNNEL');
+    } finally {
+      echo.close();
+      await ctx.updateSettings({ bypassHosts: [] });
     }
   });
 
