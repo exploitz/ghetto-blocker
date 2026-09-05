@@ -118,6 +118,8 @@ export interface RuntimeContext {
   takePendingClick(url: string): PendingClick | undefined;
   /** App version string shown in the dashboard. */
   version: string;
+  /** Port the filtering proxy listens on (for browser launch flags). */
+  proxyPort: number;
   /** Self-update status and hooks. */
   updates: Updates;
 }
@@ -169,6 +171,8 @@ interface CreateRuntimeContextOptions {
   rebuildEngines?: () => Promise<Engines>;
   /** App version string; defaults to 'dev'. */
   version?: string;
+  /** Port the filtering proxy listens on; defaults to 8080. */
+  proxyPort?: number;
   settings: Settings;
   stats: Stats;
 }
@@ -180,6 +184,7 @@ export function createRuntimeContext({
   engineBuiltAt,
   rebuildEngines,
   version = 'dev',
+  proxyPort = 8080,
   settings: initialSettings,
   stats,
 }: CreateRuntimeContextOptions): RuntimeContext {
@@ -353,6 +358,7 @@ export function createRuntimeContext({
     settings,
     stats,
     version,
+    proxyPort,
     updates,
     matchRequest,
     getCosmetics,

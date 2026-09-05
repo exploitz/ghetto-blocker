@@ -1,6 +1,6 @@
 {
   "name": "ghetto-blocker",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": true,
   "type": "module",
   "description": "A system-level, uBlock-Origin-style ad/tracker blocker that runs as a local MITM filtering proxy. Works in any Chromium browser (Vivaldi) without a browser extension.",
@@ -25,6 +25,7 @@
     "@ghostery/adblocker-extended-selectors": "^2.18.0",
     "electron-updater": "^6.8.9",
     "http-mitm-proxy": "^1.1.0",
+    "node-forge": "^1.4.0",
     "tldts": "^7.4.3"
   },
   "devDependencies": {

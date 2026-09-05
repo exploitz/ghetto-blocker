@@ -265,3 +265,51 @@ describe('scriptlet isolation (YouTube regression)', () => {
     expect(ran).toEqual([true]);
   });
 });
+
+describe('shared leaf key', () => {
+  it('hands the library one key for every host instead of generating a new one', async () => {
+    const forge = (await import('node-forge')).default;
+    const { installSharedLeafKey } = await import('../src/leaf-keys.js');
+    const shared = installSharedLeafKey();
+    // The sync form the leaf-certificate code uses: same key every time, instantly.
+    const t0 = Date.now();
+    const a = forge.pki.rsa.generateKeyPair(2048);
+    const b = forge.pki.rsa.generateKeyPair(2048);
+    expect(Date.now() - t0).toBeLessThan(20);
+    expect(a).toBe(shared);
+    expect(b).toBe(shared);
+    // The async form the CA generation uses still makes a real, distinct key.
+    const fresh = await new Promise<{ publicKey: unknown }>((resolve, reject) =>
+      forge.pki.rsa.generateKeyPair({ bits: 512 }, (err, keys) => (err ? reject(err) : resolve(keys))),
+    );
+    expect(fresh.publicKey).not.toBe(shared.publicKey);
+  });
+});
+
+describe('browser launcher', () => {
+  it('finds installed Chromium browsers by their known install paths (Windows only)', async () => {
+    const { detectBrowsers, launchFlags } = await import('../src/browsers.js');
+    const env = { LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local', PROGRAMFILES: 'C:\\Program Files', 'PROGRAMFILES(X86)': 'C:\\Program Files (x86)' };
+    const installed = new Set([
+      'C:\\Users\\me\\AppData\\Local\\Vivaldi\\Application\\vivaldi.exe',
+      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    ]);
+    const exists = (p: string) => installed.has(p.replace(/\//g, '\\'));
+    const found = detectBrowsers(env, exists, 'win32');
+    expect(found.map((b) => b.id)).toEqual(['vivaldi', 'edge']);
+    expect(found[0]?.exe).toBe('vivaldi.exe');
+    expect(detectBrowsers(env, exists, 'linux')).toEqual([]);
+    expect(launchFlags(8080)).toEqual(['--proxy-server=http://127.0.0.1:8080', '--disable-quic']);
+  });
+
+  it('tells a proxied instance from an unproxied one by its command line', async () => {
+    const { runningState } = await import('../src/browsers.js');
+    const fakeExec = (stdout: string) =>
+      ((_cmd: unknown, _args: unknown, _opts: unknown, cb: (e: null, out: string) => void) => cb(null, stdout)) as unknown as typeof import('node:child_process').execFile;
+    expect(await runningState('vivaldi.exe', 'win32', fakeExec(''))).toBe('not-running');
+    expect(await runningState('vivaldi.exe', 'win32', fakeExec('"C:\\x\\vivaldi.exe" --proxy-server=http://127.0.0.1:8080 --disable-quic\r\n'))).toBe('proxied');
+    expect(await runningState('vivaldi.exe', 'win32', fakeExec('"C:\\x\\vivaldi.exe" --flag-switches-begin --flag-switches-end\r\n'))).toBe('unproxied');
+    expect(await runningState('vivaldi.exe', 'linux')).toBe('unknown');
+    expect(await runningState('bad name; rm -rf', 'win32', fakeExec(''))).toBe('unknown');
+  });
+});

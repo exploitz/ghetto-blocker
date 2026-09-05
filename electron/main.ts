@@ -29,6 +29,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { bootstrap } from '../src/bootstrap.js';
+import { detectBrowsers, launchBrowser, runningState } from '../src/browsers.js';
 import { config } from '../src/config.js';
 import type { BootstrapResult } from '../src/bootstrap.js';
 
@@ -182,8 +183,25 @@ function installCa(): void {
 function buildTrayMenu(): ReturnType<typeof Menu.buildFromTemplate> {
   const ctx = booted?.ctx;
   const paused = ctx?.settings.paused ?? false;
+  const browsers = detectBrowsers();
   return Menu.buildFromTemplate([
     { label: 'Open Dashboard', click: showDashboard },
+    ...(browsers.length > 0
+      ? [{
+          label: 'Launch browser through proxy',
+          submenu: browsers.map((b) => ({
+            label: b.name,
+            click: async () => {
+              const port = booted?.ctx.proxyPort ?? config.proxyPort;
+              if ((await runningState(b.exe)) === 'unproxied') {
+                dialog.showErrorBox('ghetto-blocker', `${b.name} is already running without the proxy.\nQuit it completely, then launch it from here.`);
+                return;
+              }
+              launchBrowser(b, port);
+            },
+          })),
+        }]
+      : []),
     { type: 'separator' },
     {
       label: paused ? 'Resume filtering' : 'Pause filtering',

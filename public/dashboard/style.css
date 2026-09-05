@@ -243,7 +243,13 @@ main {
 .leaderboard-row .bar { grid-column: 1 / -1; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
 .leaderboard-row .bar i { display: block; height: 100%; background: var(--accent); }
 
-.quick { display: grid; grid-template-columns: 2fr 3fr; gap: 14px; }
+.quick { display: grid; grid-template-columns: 2fr 3fr; gap: 14px; flex-shrink: 0; }
+#browsersCard { grid-column: 1 / -1; }
+.graph-card { flex-shrink: 0; }
+.counters { flex-shrink: 0; }
+.browser-buttons { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.browser-buttons button.unproxied { border-color: var(--warn); color: var(--warn); }
+.browser-buttons button.proxied { border-color: var(--success); }
 
 /* ---- Buttons ---- */
 button {

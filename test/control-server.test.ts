@@ -678,3 +678,17 @@ describe('AdNauseam vault creatives', () => {
     }
   });
 });
+
+describe('browser launcher routes', () => {
+  it('lists browsers (none on this platform) with the launch flags', async () => {
+    const r = await req('GET', '/api/browsers');
+    const body = r.body as { browsers: unknown[]; flags: string[] };
+    expect(r.status).toBe(200);
+    expect(body.flags).toEqual(['--proxy-server=http://127.0.0.1:8080', '--disable-quic']);
+    expect(Array.isArray(body.browsers)).toBe(true);
+  });
+
+  it('refuses to launch an unknown browser id', async () => {
+    expect((await req('POST', '/api/browsers/launch', { body: { id: 'netscape' } })).status).toBe(404);
+  });
+});

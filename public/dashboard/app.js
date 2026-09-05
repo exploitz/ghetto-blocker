@@ -608,6 +608,45 @@ function initVault() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Browser launcher
+// ---------------------------------------------------------------------------
+
+async function loadBrowsers() {
+  const box = $('browserButtons');
+  try {
+    const { browsers, flags } = await api('GET', '/api/browsers');
+    box.innerHTML = '';
+    if (!browsers.length) {
+      const hint = document.createElement('span');
+      hint.className = 'hint';
+      hint.textContent = 'No Chromium browser found. Start yours with: ' + flags.join(' ');
+      box.appendChild(hint);
+      return;
+    }
+    for (const b of browsers) {
+      const btn = document.createElement('button');
+      btn.textContent = b.name;
+      btn.className = b.running === 'unproxied' ? 'unproxied' : b.running === 'proxied' ? 'proxied' : '';
+      btn.title = b.running === 'unproxied' ? b.name + ' is running without the proxy: quit it first'
+        : b.running === 'proxied' ? b.name + ' is already running through the proxy'
+        : 'Start ' + b.name + ' through the proxy';
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          const r = await api('POST', '/api/browsers/launch', { id: b.id });
+          notify(r.alreadyProxied ? r.name + ' is already running through the proxy' : 'Started ' + r.name + ' through the proxy');
+        } catch (e) { notify(e.message); }
+        btn.disabled = false;
+        loadBrowsers();
+      });
+      box.appendChild(btn);
+    }
+  } catch (e) {
+    box.textContent = '';
+  }
+}
+
 function initSites() {
   const add = (inputId, path, label) => async () => {
     const host = $(inputId).value.trim();
@@ -654,6 +693,7 @@ async function init() {
 
   await loadRules();
   await loadLeaderboard();
+  loadBrowsers();
   initGraph();
   drawGraph();
   initSSE();

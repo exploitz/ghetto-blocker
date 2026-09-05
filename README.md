@@ -48,8 +48,11 @@ inside the page.
    chrome.exe --proxy-server="http://127.0.0.1:8080" --disable-quic
    ```
 
-   Put those flags in the shortcut you normally launch the browser with. A
-   browser started without them is unfiltered. Don't set the proxy
+   Or skip the flags: the dashboard's overview has a **Launch a browser**
+   card (and the tray menu has the same) that starts any installed Chromium
+   browser with the right flags, and tells you if it's already running
+   without them. A browser started without the flags is unfiltered, and a
+   running browser ignores the flags of a second launch, so quit it first. Don't set the proxy
    system-wide: non-HTTP apps can't go through an HTTP proxy and will break.
    Loopback addresses bypass the proxy by default, which is what the
    dashboard and the extension rely on; don't add `<-loopback>` to a bypass
@@ -181,7 +184,7 @@ Read this part.
 | | |
 |---|---|
 | Certificate errors | The CA isn't trusted, or the browser was still running when it was installed. Install, then fully quit and reopen the browser. |
-| Counters never move | The browser wasn't started with the proxy flags. |
+| Counters never move | The browser wasn't started with the proxy flags. Quit it and use "Launch a browser" on the overview. |
 | Ads on YouTube / HTTPS sites | QUIC is still on. |
 | Ad boxes appear after the page loads | The extension isn't loaded, or its popup dot is red (app not running). |
 | A site won't load at all | Probably certificate pinning. Add it to bypass hosts. |

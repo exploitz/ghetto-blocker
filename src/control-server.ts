@@ -4,8 +4,9 @@ import { extname, join, sep } from 'node:path';
 import { parse as parseDomain } from 'tldts';
 import type { RuntimeContext } from './runtime.js';
 import type { Settings } from './state.js';
-import type { ClickRequest, CosmeticsRequest, CosmeticsResponse, ExportBackup, StateResponse, VaultResponse } from './api-types.js';
+import type { BrowsersResponse, ClickRequest, CosmeticsRequest, CosmeticsResponse, ExportBackup, StateResponse, VaultResponse } from './api-types.js';
 import { isBypassed } from './util.js';
+import { detectBrowsers, launchBrowser, launchFlags, runningState } from './browsers.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -168,6 +169,36 @@ export async function route(
       update: ctx.updates.status,
     };
     return { status: 200, body };
+  }
+
+  if (m === 'GET' && pathname === '/api/browsers') {
+    const found = detectBrowsers();
+    const states = await Promise.all(found.map((b) => runningState(b.exe)));
+    const body: BrowsersResponse = {
+      browsers: found.map((b, i) => ({ id: b.id, name: b.name, running: states[i] ?? 'unknown' })),
+      flags: launchFlags(ctx.proxyPort),
+    };
+    return { status: 200, body };
+  }
+
+  if (m === 'POST' && pathname === '/api/browsers/launch') {
+    let body: { id?: unknown; url?: unknown };
+    try {
+      body = parseJsonBody(rawBody) as { id?: unknown; url?: unknown };
+    } catch {
+      return { status: 400, body: { error: 'invalid JSON' } };
+    }
+    const browser = detectBrowsers().find((b) => b.id === body.id);
+    if (!browser) return { status: 404, body: { error: 'browser not found' } };
+    const state = await runningState(browser.exe);
+    if (state === 'unproxied') {
+      return {
+        status: 409,
+        body: { error: `${browser.name} is already running without the proxy. Quit it completely, then launch it from here.` },
+      };
+    }
+    launchBrowser(browser, ctx.proxyPort, typeof body.url === 'string' ? body.url : undefined);
+    return { status: 200, body: { ok: true, name: browser.name, alreadyProxied: state === 'proxied' } };
   }
 
   if (m === 'POST' && pathname === '/api/update/check') {

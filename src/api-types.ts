@@ -97,3 +97,10 @@ export interface VaultResponse {
   clicked: number;
   entries: VaultEntry[];
 }
+
+/** Response body for GET /api/browsers. */
+export interface BrowsersResponse {
+  browsers: { id: string; name: string; running: 'not-running' | 'proxied' | 'unproxied' | 'unknown' }[];
+  /** The flags a browser must be started with (shown in the UI as a fallback). */
+  flags: string[];
+}

@@ -11,6 +11,7 @@ import http from 'node:http';
 import { config } from './config.js';
 import { createControlServer } from './control-server.js';
 import { buildEngines, loadEngines } from './engine.js';
+import { installSharedLeafKey } from './leaf-keys.js';
 import { createProxy } from './proxy.js';
 import type { RuntimeContext } from './runtime.js';
 import { createRuntimeContext } from './runtime.js';
@@ -55,6 +56,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
     engineBuiltAt: engines.builtAt,
     rebuildEngines: () => buildEngines(config),
     version: options.version,
+    proxyPort: config.proxyPort,
     settings,
     stats,
   });
@@ -66,6 +68,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
   }, STATS_FLUSH_MS);
   statsTimer.unref();
 
+  installSharedLeafKey();
   const { proxy } = createProxy(ctx);
   const controlServer = createControlServer(ctx, options.dashboardDir);
 
