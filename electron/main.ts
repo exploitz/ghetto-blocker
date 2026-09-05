@@ -83,7 +83,7 @@ function applyWindowTheme(theme: string): void {
 
 // ---- Self-update (GitHub Releases via electron-updater) -----------------
 
-const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 2 * 60 * 60 * 1000;
 
 function setupAutoUpdate(ctx: BootstrapResult['ctx']): void {
   const { updates } = ctx;

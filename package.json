@@ -93,5 +93,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/exploitz/ghetto-blocker.git"
-  }
+  },
+  "license": "GPL-3.0-only",
+  "author": "exploitz"
 }

@@ -186,3 +186,7 @@ Read this part.
 | Ad boxes appear after the page loads | The extension isn't loaded, or its popup dot is red (app not running). |
 | A site won't load at all | Probably certificate pinning. Add it to bypass hosts. |
 | Pausing doesn't seem to change a page | Reload it; pages already open keep the CSS they were given. If ads still don't show, the browser's own blocker is doing it. |
+
+## License
+
+GPL-3.0. Copyright (c) 2026 exploitz. See [LICENSE](LICENSE).

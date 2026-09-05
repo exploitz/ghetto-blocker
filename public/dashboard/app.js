@@ -80,6 +80,16 @@ function applyState(state) {
   if (state.update) applyUpdateStatus(state.version, state.update);
 }
 
+/** Opening the dashboard is a good moment to look for a release, if it has been a while. */
+async function checkUpdatesIfStale(update) {
+  if (!update || update.state === 'unavailable' || update.state === 'checking' || update.state === 'downloading' || update.state === 'ready') return;
+  if (update.checkedAt && Date.now() - update.checkedAt < 30 * 60 * 1000) return;
+  try {
+    const { update: fresh } = await api('POST', '/api/update/check');
+    applyUpdateStatus($('versionLine').textContent.replace(/^v([^\s]+).*/, '$1'), fresh);
+  } catch (_) { /* rail shows the last known state */ }
+}
+
 let updatePollTimer = null;
 function applyUpdateStatus(version, u) {
   const line = $('versionLine');
@@ -631,6 +641,7 @@ async function init() {
     const state = await api('GET', '/api/state');
     applySettings(state.settings);
     applyState(state);
+    checkUpdatesIfStale(state.update);
   } catch (e) {
     notify('Could not connect to control server: ' + e.message);
   }
