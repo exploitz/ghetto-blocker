@@ -1,447 +1,190 @@
 # ghetto-blocker
 
-A system-level, uBlock-Origin-style ad/tracker blocker that runs as a **local
-HTTPS filtering proxy** instead of a browser extension. It works in any
-Chromium browser (Vivaldi, Chrome, Edge, Brave) without relying on Manifest V2,
-so it keeps working after Google finishes removing MV2.
+An ad blocker that lives outside the browser.
 
-It does the two things that make uBlock Origin effective:
+Google removed the Manifest V2 APIs that uBlock Origin needed, and the MV3
+replacements cap how many rules an extension can enforce. ghetto-blocker
+sidesteps the whole thing: it is a small local HTTPS proxy that filters
+traffic with the same lists uBlock uses (EasyList, EasyPrivacy, the uBlock
+Origin lists) and injects the element-hiding CSS itself. The browser can't
+take that away because the browser never sees it.
 
-1. **Network filtering** -- blocks requests to ad/tracker URLs using the real
-   EasyList / EasyPrivacy / uBlock Origin filter lists (via
-   [`@ghostery/adblocker`](https://github.com/ghostery/adblocker)).
-2. **Cosmetic filtering** -- injects element-hiding CSS (and scriptlets) into
-   HTML pages so leftover ad boxes and placeholders disappear, including
-   first-party ads that a DNS blocker can't touch. The proxy scans each page for
-   the classes/ids/links it contains and injects the matching generic rules
-   (the ~28,000 class/id-indexed EasyList rules, not just the hostname ones);
-   the companion extension then keeps hiding elements that JavaScript inserts
-   later and evaluates procedural rules such as `:has-text()`.
-3. **Anti-analytics** -- strips tracking query parameters (`utm_*`, `gclid`,
-   `fbclid`, etc.) from GET navigations via a 302 redirect before they reach the
-   server.
-4. **Element picker** -- the same MV3 extension lets you click any page
-   element to create a persistent hide rule stored via the local API.
-5. **AdNauseam mode** (off by default) -- instead of blocking ads, let them
-   load hidden and click them in the background so the ad networks' profile
-   of you fills with noise. Trackers stay blocked. Everything clicked lands in
-   the dashboard's Vault.
+Works with any Chromium browser (Vivaldi, Chrome, Edge, Brave) on Windows.
+A companion extension is included; it handles the parts that need to run
+inside the page.
+
+## What it does
+
+- Blocks ad and tracker requests before they leave your machine.
+- Hides ad containers and placeholders with cosmetic rules. The proxy reads
+  each page and picks the rules that apply to what's actually in it, so the
+  generic class/id rules from EasyList work, not just per-site ones.
+- Runs uBlock's scriptlets (the bits that keep YouTube playable, for example).
+- Strips tracking parameters (`utm_*`, `gclid`, `fbclid`, ...) from links.
+- With the extension: keeps hiding things that JavaScript adds after the page
+  loads, applies procedural rules like `:has-text()`, shows a blocked count
+  per tab, and lets you click any element on a page to block it.
+- AdNauseam mode, off by default: instead of blocking ads, load them hidden
+  and click them in the background so the ad networks' picture of you is
+  garbage. Trackers stay blocked. What got clicked is listed in the vault.
+- A local dashboard with live activity, per-site controls, custom rules,
+  and three themes. Stats persist across restarts.
+- Updates itself from GitHub Releases.
+
+## Install
+
+1. Grab the latest `ghetto-blocker-Setup-<version>.exe` from
+   [Releases](https://github.com/exploitz/ghetto-blocker/releases) and run it.
+   It installs to Program Files and lives in the system tray.
+2. Trust the certificate. On first run the proxy generates its own
+   certificate authority; a tray notification offers to install it (needs
+   admin). This is what lets the proxy see inside HTTPS. See
+   [Security](#security) before you do this.
+3. Start your browser through the proxy:
+
+   ```
+   chrome.exe --proxy-server="http://127.0.0.1:8080" --proxy-bypass-list="<-loopback>" --disable-quic
+   ```
+
+   Put those flags in the shortcut you normally launch the browser with. A
+   browser started without them is unfiltered. Don't set the proxy
+   system-wide: non-HTTP apps can't go through an HTTP proxy and will break.
+
+   `--disable-quic` matters. Chromium speaks HTTP/3 over UDP when it can,
+   and a TCP proxy can't intercept that. (You can also disable QUIC under
+   `chrome://flags`.)
+4. Load the extension: open `chrome://extensions` (or `vivaldi://extensions`),
+   turn on Developer mode, click Load unpacked, and pick
+   `C:\Program Files\ghetto-blocker\resources\extension`. Then reload any
+   open tabs.
+
+Open `http://127.0.0.1:8081` for the dashboard, or double-click the tray icon.
+
+To check it's working from a terminal:
+
+```
+curl -x http://127.0.0.1:8080 --cacert "%USERPROFILE%\.ghetto-blocker\ca\certs\ca.pem" -o NUL -w "%{http_code} %{size_download}" https://www.google-analytics.com/analytics.js
+```
+
+A blocked request comes back as `200 0`.
 
 ## How it works
 
 ```
-  Vivaldi  --HTTP/HTTPS-->  ghetto-blocker proxy (127.0.0.1:8080)  -->  internet
-                                  |
-                                  +-- @ghostery/adblocker engine
-                                      - match(request)  -> block / redirect / allow
-                                      - getCosmeticsFilters(page) -> CSS + scriptlets
-                                  |
-                            control server (127.0.0.1:8081)
-                                  |
-                                  +-- Dashboard (pause/resume, rules, stats)
-                                  +-- REST API  (extension popup + picker)
-                                  +-- POST /api/cosmetics  (extension content
-                                      script: new DOM classes/ids -> hide CSS)
+browser --> ghetto-blocker proxy (127.0.0.1:8080) --> internet
+                 |
+                 |  filter engine (@ghostery/adblocker + uBlock lists)
+                 |    request  -> block / redirect / allow
+                 |    HTML     -> inject hide-CSS + scriptlets
+                 |
+             control server (127.0.0.1:8081)
+                 |  dashboard, REST API, live event stream
+                 |
+             extension (MV3) <-- asks the control server which rules
+                                 the page's new DOM unlocks; applies them
 ```
 
-The proxy generates its own Certificate Authority on first run. Once you trust
-that CA in Windows, the proxy can decrypt HTTPS, apply filter rules to each
-request, and inject cosmetic CSS into HTML responses before handing them to the
-browser.
+The proxy terminates TLS with certificates it mints on the fly, signed by
+the local CA you trusted at install. Chromium accepts user-installed roots
+even for sites that would otherwise be pinned, so ordinary browsing works.
+Standalone apps that pin their certificates do not; those go on the bypass
+list in the dashboard.
 
-> Chromium ignores certificate **key-pinning** for user-installed root CAs by
-> design, so normal browsing through the proxy works. Cert-pinned standalone
-> apps are the exception -- see [Bypassing specific sites](#bypassing-specific-sites).
-
-## Requirements
-
-- **Windows 10/11 x64** (NSIS installer path) or Node.js 20+ for headless mode.
-- Vivaldi (or any Chromium browser).
-
----
-
-## Installation
-
-### Option A -- Desktop app (recommended)
-
-1. Build the installer on Windows (`npm install`, then `npm run dist`; it lands
-   in `release\ghetto-blocker Setup 0.1.0.exe`) and run it. The NSIS installer
-   needs Windows or Wine. From Linux/WSL two wine-free variants work instead:
-   `npx electron-builder --win portable` produces a single-file
-   `release/ghetto-blocker 0.1.0.exe` (self-extracting, no install step), and
-   `npx electron-builder --win dir` produces the unpacked folder
-   `release/win-unpacked/` (run `ghetto-blocker.exe` inside it).
-2. ghetto-blocker starts in the system tray.  If the CA is not trusted,
-   a notification appears -- click it (or right-click tray -> "Install CA
-   certificate...") to elevate and import the cert automatically.
-3. Launch Vivaldi with the proxy flags (see step 5 below).
-
-### Option B -- Headless / developer install
-
-```powershell
-# 1. Install Node dependencies
-npm install
-
-# 2. Start the proxy once to generate the CA, then stop it (Ctrl+C)
-npm start
-#    Note the CA path it prints:  %USERPROFILE%\.ghetto-blocker\ca\certs\ca.pem
-
-# 3. Trust the CA (ELEVATED PowerShell -- right-click "Run as administrator")
-powershell -ExecutionPolicy Bypass -File scripts\install-ca.ps1
-
-# 4. Start the proxy and leave it running
-npm start
-#    Dashboard: http://127.0.0.1:8081
-```
-
----
-
-### Point Vivaldi at the proxy
-
-**Recommended (per-browser):** launch Vivaldi with a proxy flag.  This confines
-interception to Vivaldi so the proxy only ever sees browser traffic.
-
-```powershell
-& "$env:LOCALAPPDATA\Vivaldi\Application\vivaldi.exe" `
-  --proxy-server="http://127.0.0.1:8080" `
-  --proxy-bypass-list="<-loopback>"
-```
-
-> **Avoid the system-wide proxy** (Windows Settings -> Network & Internet ->
-> Proxy). It funnels *every* app through the blocker -- AnyDesk, Windows
-> connectivity probes, Google push, password managers -- and those non-HTTP
-> protocols can't go through an HTTP proxy. Per-browser scoping avoids all of
-> it. `--proxy-bypass-list="<-loopback>"` also stops the browser from trying to
-> proxy `localhost` back through the proxy.
-
-### Disable QUIC (important)
-
-Chromium does HTTP/3 over QUIC (UDP), which a TCP proxy can't see.  Turn it off
-so traffic falls back to interceptable TCP:
-
-- Open `vivaldi://flags`, find **Experimental QUIC protocol**, set it to
-  **Disabled**, and relaunch.
-
-### Verify it works
-
-Browse normally. Ad-heavy pages should load cleaner. To confirm from a terminal:
-
-```bash
-CA="$USERPROFILE/.ghetto-blocker/ca/certs/ca.pem"   # adjust path for your shell
-curl -x http://127.0.0.1:8080 --cacert "$CA" -o /dev/null -w "%{http_code} %{size_download}\n" \
-  https://www.google-analytics.com/analytics.js
-# -> 200 0   (blocked: zero bytes returned)
-```
-
----
+Blocked requests get an empty `200` (pages don't error out) with an
+`x-ghetto-blocker: block` header the extension counts per tab.
 
 ## Dashboard
 
-The local dashboard runs at `http://127.0.0.1:8081` (or open it from the tray
-menu -- "Open Dashboard").
+| | |
+|---|---|
+| **Rail** | Active/paused, Pause, the toggles (cosmetics, anti-tracking, strip CSP, start at login, AdNauseam), filter-list age with an Update button, theme |
+| **Overview** | All-time counters, a 60-second activity graph, the live feed, top blocked sites, quick bypass and broken-site report |
+| **Rules** | Your own filter rules in uBlock / Adblock Plus syntax; export and import |
+| **Sites** | Allowlist (not filtered) and bypass hosts (not intercepted at all) |
+| **Vault** | Everything AdNauseam has clicked |
 
-| View | Features |
-|------|----------|
-| **Rail** (always visible) | Active/paused badge; Pause/Resume; cosmetics / anti-tracking / strip-CSP / start-at-login / AdNauseam toggles; view navigation; filter-list age with an **Update lists** button; theme selector |
-| **Overview** | All-time blocked / pages cleaned / trackers stripped / allowed / ads clicked counters (persisted across restarts); live 60-second activity graph; filterable live feed; top blocked sites; bypass-a-site and broken-site report |
-| **Rules** | Full-height editor for custom filter rules (uBlock Origin / Adblock Plus syntax) with rule count; save, export, import backup |
-| **Sites** | Allowlist (no filtering) and bypass hosts (no HTTPS interception) side by side |
-| **Vault** | Every ad AdNauseam clicked: time, ad network, page, click-through URL |
+Themes: Terminal, Cyberpunk, Daylight. The window's title bar follows the
+theme.
 
-Settings (theme, pause state, toggles) persist across restarts.
+## The extension
 
-Themes: **Terminal** (green phosphor), **Cyberpunk** (neon HUD: chamfered
-panels, scanlines, grid horizon), and **Daylight** (light). The desktop
-window's title bar follows the theme.
+The proxy only sees the HTML a server sends. Ad slots created afterwards by
+JavaScript are invisible to it, and some uBlock rules (`:has-text()`,
+`:upward()`) can't be expressed as CSS at all. The content script watches
+the DOM, reports new classes and ids to the control server, and applies
+whatever rules those unlock as a user stylesheet that page CSP can't block.
 
----
+The popup shows the blocked count for the tab, allows or un-allows the
+current site, pauses everything, and has the element picker. "Zap" hides
+something for the current page only; "Pick" saves a rule.
 
-## Extension: dynamic cosmetics + element picker
-
-The `extension/` directory contains an MV3 browser extension that does two
-things:
-
-- **Dynamic cosmetic filtering** (`cosmetics.js`, runs in every http(s) frame).
-  The proxy can only see the HTML a server sends; ad slots that JavaScript
-  creates afterwards (lazy-loaded units, SPA views, "Advertisement" labels) are
-  invisible to it. The content script watches the DOM, reports every new
-  class/id/href to the control server, and applies the hide rules those unlock
-  as a user-origin stylesheet (so page CSP cannot block it). It also evaluates
-  the procedural rules -- `:has-text()`, `:upward()`, nested `:has()` -- that
-  plain CSS cannot express. Without the extension you still get network
-  blocking plus the cosmetics for whatever was in the served HTML.
-- **Element picker / zapper** -- click any page element to block it.
-- **Per-tab badge and per-site controls** -- the toolbar icon shows how many
-  requests the proxy blocked on the current page (the proxy marks every blocked
-  response with an `x-ghetto-blocker` header the extension counts per tab). The
-  popup can allow / un-allow the current site and pause / resume all blocking.
-- **AdNauseam clicks** -- when the mode is on, the content script reports the
-  click-through links of ads it finds (known ad-network click trackers, and any
-  outbound link inside an ad-network frame); the service worker announces each
-  one to the control server and fetches it after a random 2-20 s delay, at
-  most 8 per minute.
-
-`extension/cosmetics.js` is generated by `npm run build` (from
-`extension-src/cosmetics.ts`); the installer ships it prebuilt.
-
-### Load unpacked
-
-1. Open `vivaldi://extensions` (or `chrome://extensions`), enable **Developer
-   mode** (top-right toggle).
-2. Click **Load unpacked** and select the `extension/` folder inside the
-   ghetto-blocker install (for the installer path, it is at
-   `%LOCALAPPDATA%\Programs\ghetto-blocker\resources\extension\`).
-   Run `npm run build` first when loading from a source checkout.
-3. The "GB" icon appears in the toolbar.
-
-> The extension asks for access to all http/https sites -- that is what lets it
-> apply hide rules on every page. It only ever talks to `127.0.0.1:8081`.
-
-> The browser must be launched with
-> `--proxy-bypass-list="<-loopback>"` so the extension can reach the control
-> server at `127.0.0.1:8081` directly (loopback bypasses the proxy).
-
-### Using the picker
-
-- **Pick element to block** -- hover highlights elements; click to preview the
-  generated CSS selector and match count; confirm to save a persistent hide rule.
-  The rule is stored via `POST /api/rules/append` and applied on the next page
-  load.
-- **Zap element (this page)** -- click to hide immediately; not persisted;
-  useful for one-off page cleanup.
-- **Open dashboard** -- opens the dashboard tab.
-
-The connection status dot in the popup turns green when the control server is
-reachable.
-
----
+The extension is MV3 and uses nothing Google is removing. It doesn't block
+requests, the proxy does. It asks for access to all sites because it applies
+hide rules everywhere; the only thing it talks to is `127.0.0.1:8081`.
 
 ## AdNauseam mode
 
-Turn it on with the **AdNauseam** toggle in the dashboard rail. What changes:
-
-- The proxy stops blocking ad-network requests and only enforces the tracker
-  lists (EasyPrivacy + uBlock privacy) plus your own rules. Ads load but stay
-  hidden by the cosmetic rules, so pages look the same.
-- The extension hunts for the hidden ads' click-through links and clicks them
-  in the background (`fetch` with `no-cors`, cookies included, so the ad
-  network counts a real click). Each click is announced to the control server
-  first (`POST /api/adnauseam/click`), which tells the proxy to let that exact
-  URL through untouched -- no tracking-param stripping, no filtering.
-- Every click is recorded: the "ads clicked" counter, a CLICK entry in the live
-  feed, and the **Vault** view.
-
-Pages use more bandwidth in this mode because the ads actually download.
+Turn it on in the rail. From then on the proxy lets ad-network requests
+through (ads download but stay hidden), keeps enforcing the tracker lists
+and your own rules, and the extension looks for the hidden ads' click-through
+links. Each one is announced to the control server and fetched in the
+background after a random delay, at most eight a minute, with cookies, so it
+registers as a click. Pages use more bandwidth in this mode.
 
 ## Updates
 
-The desktop app updates itself from GitHub Releases
-(`exploitz/ghetto-blocker`, configured under `build.publish` in
-`package.json`). On launch and every 6 hours it checks for a newer release,
-downloads it in the background, and offers "Restart to update" in the tray and
-in the dashboard rail (which also shows the running version and the last check
-result). The update installs on the next quit either way.
+The app checks GitHub Releases shortly after launch and every six hours,
+downloads new versions in the background, and offers "Restart to update" in
+the tray and the dashboard. The version line in the rail shows the state.
 
-Publishing a release (maintainer):
+To publish a release: bump `version` in `package.json`, set `GH_TOKEN` to a
+token that can write releases, and run `npm run release` on Windows. The
+script creates the GitHub release, builds the installer, and attaches
+everything the updater needs.
 
-```powershell
-# bump "version" in package.json, then, with a GitHub token that can write releases:
-$env:GH_TOKEN = "<token>"
-npm run release        # build, create the GitHub release, upload installer + latest.yml + blockmap
-```
-
-`scripts/release.mjs` creates the release `v<version>` first (electron-builder
-races itself when it creates the release from two artifacts at once), runs
-electron-builder with `--publish always`, then verifies `latest.yml` and the
-blockmap are attached with the names electron-updater expects, uploading them
-itself if not. Installed apps pick the release up on their next check.
-
-## Anti-analytics
-
-When **Anti-analytics** is enabled in the dashboard (on by default), GET
-navigations that carry tracking query parameters are intercepted and 302-
-redirected to the clean URL before the request leaves the machine:
+## Running from source
 
 ```
-GET http://example.com/?id=5&utm_source=newsletter&gclid=abc
- -> 302 http://example.com/?id=5
+npm install
+npm start          # headless proxy + dashboard, no tray
+npm run build      # electron main + extension bundle
+npm run electron:dev
+npm run dist       # NSIS installer -> release/
+npm test
 ```
 
-Stripped families: `utm_*`, `gclid`, `fbclid`, `msclkid`, `dclid`, `gbraid`,
-`wbraid`, `mc_eid`, `igshid`, `_hsenc`, `_hsmi`, `yclid`, `ttclid`.
+Runtime data lives in `%USERPROFILE%\.ghetto-blocker` (CA, cached filter
+engines, settings, your rules, stats). Set `GHETTO_DATA_DIR` to put it
+somewhere else. Filter lists refresh weekly, or on demand from the dashboard.
 
-Every GET request is covered, subresources (pixels, beacons) included. POST
-requests are never modified -- doing so would silently drop the body and break
-form submissions.
+For a headless install, trust the CA with
+`powershell -ExecutionPolicy Bypass -File scripts\install-ca.ps1` (as admin)
+and use `scripts\install-autostart.ps1` for a logon task.
 
----
+## Security
 
-## npm scripts
+Read this part.
 
-| Script | What it does |
-|--------|--------------|
-| `npm start` | Run headless (proxy + control server via `tsx`). |
-| `npm run dev` | Run with auto-restart on file changes. |
-| `npm test` | Run the Vitest suite (unit + integration tests). |
-| `npm run typecheck` | `tsc --noEmit`. |
-| `npm run build` | esbuild: `electron/main.ts` -> `dist/electron-main.cjs`, and `extension-src/cosmetics.ts` -> `extension/cosmetics.js`. |
-| `npm run electron:dev` | Build then launch Electron (Windows). |
-| `npm run dist` | Build then run electron-builder to produce the NSIS installer in `release/` (Windows). |
-| `npm run release` | Same, then publish the installer + `latest.yml` to GitHub Releases (needs `GH_TOKEN`). |
-| `npm run update-lists` | Delete the cached engine so the next start re-downloads fresh filter lists. |
-
----
-
-## Configuration
-
-Runtime settings (pause, cosmetics, anti-analytics, theme, port, allowlist,
-bypass hosts) are changed via the **Dashboard** and persist automatically.
-
-Static install-level config lives in `src/config.ts`:
-
-| Field | Default | Meaning |
-|-------|---------|---------|
-| `proxyPort` | `8080` | Port the MITM proxy listens on. |
-| `proxyHost` | `127.0.0.1` | Bind address (local-only). |
-| `enginePath` | `~/.ghetto-blocker/engine.bin` | Cached compiled filter engine. |
-| `privacyEnginePath` | `~/.ghetto-blocker/privacy.bin` | Cached tracker-lists-only engine (AdNauseam mode). |
-| `engineTtlMs` | 7 days | Re-download lists when the cache is older than this; the dashboard's **Update lists** button refreshes on demand. |
-
-Set the `GHETTO_DATA_DIR` environment variable to relocate the whole data
-directory (CA, cached engine, settings, user rules) -- useful for running a
-second instance or tests.
-
-### Bypassing specific sites
-
-Sites that break due to certificate pinning can be added via the **Dashboard ->
-Stats -> Bypass hosts** editor, or manually in the dashboard's Settings panel.
-Matching is by exact host or subdomain suffix (`chase.com` covers
-`secure.chase.com`).
-
-## Autostart at logon
-
-- **Desktop app:** toggle "Start at login" in the dashboard (persists in
-  `settings.json` and is applied via `app.setLoginItemSettings`).
-- **Headless:** `powershell -ExecutionPolicy Bypass -File scripts\install-autostart.ps1`
-  (installs a Windows Scheduled Task). Remove with
-  `Unregister-ScheduledTask -TaskName 'ghetto-blocker' -Confirm:$false`.
-
----
-
-## Security and trust
-
-- **The CA is powerful.** Anything that trusts this CA can have its HTTPS traffic
-  decrypted by this proxy. The CA private key lives at
-  `%USERPROFILE%\.ghetto-blocker\ca\` -- keep it private and never commit it.
-  Run `scripts\uninstall-ca.ps1` to remove the CA from the trust store when
-  done, or right-click the tray icon -> Quit, then re-run the uninstall script.
-- **CA private key is never shipped.** The installer packages only the app
-  binaries; the CA is generated per-machine on first run and lives entirely
-  outside the install tree. No control-server route exposes the key.
-- **`stripCSP` weakens page XSS protection.** Removing Content-Security-Policy is
-  what lets the injected inline CSS/JS run. Acceptable for a personal blocker;
-  disable it in the dashboard if you'd rather keep CSP and lose some cosmetic
-  filtering.
-- **Control server is loopback-only.** The API listens on `127.0.0.1:8081` and
-  requires a `X-GhettoBlocker: 1` header and a valid `Host` header on all
-  mutating requests (CSRF/DNS-rebinding guard).
-
----
-
-## Limitations (known shortcuts)
-
-These are deliberate v1 simplifications, each marked with a `SHORTCUT:` comment
-in the code naming its upgrade trigger:
-
-- **No per-host TLS passthrough tunnel.** Bypassed hosts are filtered out
-  entirely rather than tunneled raw. Upgrade: serve a PAC file returning `DIRECT`
-  for bypass hosts.
-- **Heuristic element picker selector.** The extension uses an id -> class ->
-  `:nth-child` heuristic to generate CSS selectors. If it mis-targets: swap in
-  `@medv/finder`.
-- **Decode-failure fallback.** If decoding a compressed body fails (rare for
-  valid responses), the page is passed through without cosmetics.
-- **Cosmetics for JS-inserted content need the extension.** The proxy only
-  sees served HTML; see the extension section above.
-
----
+- **The CA can decrypt your HTTPS.** Anything that trusts it can be
+  intercepted by anything holding its private key. The key is generated on
+  your machine, stays in `%USERPROFILE%\.ghetto-blocker\ca\`, is never
+  shipped or uploaded, and no API route exposes it. Don't copy it around.
+  `scripts\uninstall-ca.ps1` removes it from the trust store.
+- **Strip CSP** is on by default. Removing a page's Content-Security-Policy
+  is what lets the injected CSS and scriptlets run, and it also weakens the
+  page's own XSS defences. Turn it off in the dashboard if you'd rather keep
+  CSP and lose some cosmetic filtering.
+- The control server listens on loopback only and requires an
+  `X-GhettoBlocker` header on anything that changes state, so a web page
+  can't reconfigure it.
 
 ## Troubleshooting
 
-| Symptom | Fix |
-|---------|-----|
-| Browser shows certificate errors | CA not trusted, or Vivaldi was not fully restarted. Re-run the CA install, quit Vivaldi via Task Manager, reopen. |
-| Some ads still get through | Lists may be stale (`npm run update-lists`) or served first-party in a way no list covers yet. |
-| Ad boxes appear a moment after the page loads | Those are inserted by JavaScript; load the extension (its popup dot must be green) so the dynamic cosmetic layer can hide them. |
-| A site won't load at all | Likely cert pinning. Add its host via Dashboard -> Stats -> Bypass hosts and restart the proxy. |
-| YouTube/HTTPS still shows ads | Confirm QUIC is disabled (`vivaldi://flags`) -- otherwise that traffic bypasses the proxy. |
-| Extension picker shows "Offline" | Ensure ghetto-blocker is running and Vivaldi was launched with `--proxy-bypass-list="<-loopback>"`. |
-
----
-
-## Project layout
-
-```
-src/
-  config.ts          Static install config (ports, paths, TTL)
-  state.ts           Settings / Stats persistence (all-time totals + AdNauseam vault)
-  paths.ts           Data-directory helpers
-  runtime.ts         RuntimeContext: live settings, base/privacy/user engines,
-                     list updates, AdNauseam pending clicks
-  util.ts            Pure helpers (URL, decompress, cosmetic inject, strip params)
-  engine.ts          Loads, caches and rebuilds the full + privacy-only engines
-  proxy.ts           MITM proxy: block, inject cosmetics, anti-analytics 302
-  control-server.ts  Local HTTP API (+ /api/cosmetics) + SSE + static dashboard server
-  bootstrap.ts       Shared startup (used by index.ts and electron/main.ts)
-  index.ts           Headless entry point
-  api-types.ts       Shared TypeScript API types
-
-electron/
-  main.ts            Electron main process (tray, window, CA install, autostart)
-  tray-icon.png      System tray icon (16x16 neon green)
-
-extension-src/
-  cosmetics.ts       Source of the dynamic-cosmetics content script (bundled by esbuild)
-  adfinder.ts        Ad click-through link detection for AdNauseam mode
-
-extension/           MV3 extension: dynamic cosmetics + element picker (load unpacked)
-  manifest.json
-  background.js      Service worker: control-server calls, insertCSS, per-tab badge,
-                     popup actions, AdNauseam click scheduler, picker injection
-  cosmetics.js       GENERATED by `npm run build` -- DOM monitor + procedural rule evaluator
-  content.js         Picker / zapper overlay (injected on demand)
-  selector.js        CSS-selector heuristic (id -> class -> :nth-child)
-  popup.html / .js   Extension popup
-  icons/             16 / 48 / 128 px PNG icons
-
-public/dashboard/    Static dashboard served by the control server
-  index.html         4-tab dashboard (Status / Rules / Sites / Stats)
-  app.js             Client-side logic (tabs, SSE, API calls)
-  style.css / themes.css
-
-scripts/
-  install-ca.ps1          Trust the CA (Windows, requires admin)
-  uninstall-ca.ps1        Remove the CA from trust store
-  install-autostart.ps1   Headless autostart via Windows Scheduled Task
-  update-lists.ts         Drop the cached engines (triggers re-download)
-  release.mjs             Publish the current version to GitHub Releases
-
-build/
-  icon.ico           Multi-size ICO for the NSIS installer
-
-esbuild.config.mjs   Compiles electron/main.ts -> dist/electron-main.cjs and
-                     extension-src/cosmetics.ts -> extension/cosmetics.js
-release/             electron-builder output (installer / win-unpacked), git-ignored
-
-test/
-  util.test.ts         Pure-helper unit tests
-  engine.test.ts       Filter matching + cosmetics
-  state.test.ts        Settings / stats persistence
-  runtime.test.ts      RuntimeContext (two-engine merge, hot reload)
-  control-server.test.ts  API endpoint tests (route() + live SSE)
-  integration.test.ts  Real proxy: block, inject, anti-analytics, pause
-```
-
-## Deferred features
-
-- **Privacy-frontend redirects** (YouTube -> Invidious, etc.).
+| | |
+|---|---|
+| Certificate errors | The CA isn't trusted, or the browser was still running when it was installed. Install, then fully quit and reopen the browser. |
+| Counters never move | The browser wasn't started with the proxy flags. |
+| Ads on YouTube / HTTPS sites | QUIC is still on. |
+| Ad boxes appear after the page loads | The extension isn't loaded, or its popup dot is red (app not running). |
+| A site won't load at all | Probably certificate pinning. Add it to bypass hosts. |
+| Pausing doesn't seem to change a page | Reload it. Pages already open keep the CSS they were given. |
