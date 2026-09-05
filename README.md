@@ -144,29 +144,10 @@ The app checks GitHub Releases shortly after launch and every six hours,
 downloads new versions in the background, and offers "Restart to update" in
 the tray and the dashboard. The version line in the rail shows the state.
 
-To publish a release: bump `version` in `package.json`, set `GH_TOKEN` to a
-token that can write releases, and run `npm run release` on Windows. The
-script creates the GitHub release, builds the installer, and attaches
-everything the updater needs.
+## Development
 
-## Running from source
-
-```
-npm install
-npm start          # headless proxy + dashboard, no tray
-npm run build      # electron main + extension bundle
-npm run electron:dev
-npm run dist       # NSIS installer -> release/
-npm test
-```
-
-Runtime data lives in `%USERPROFILE%\.ghetto-blocker` (CA, cached filter
-engines, settings, your rules, stats). Set `GHETTO_DATA_DIR` to put it
-somewhere else. Filter lists refresh weekly, or on demand from the dashboard.
-
-For a headless install, trust the CA with
-`powershell -ExecutionPolicy Bypass -File scripts\install-ca.ps1` (as admin)
-and use `scripts\install-autostart.ps1` for a logon task.
+Building from source, the headless mode, and how releases are published are
+in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Security
 
