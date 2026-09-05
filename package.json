@@ -1,6 +1,6 @@
 {
   "name": "ghetto-blocker",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "description": "A system-level, uBlock-Origin-style ad/tracker blocker that runs as a local MITM filtering proxy. Works in any Chromium browser (Vivaldi) without a browser extension.",

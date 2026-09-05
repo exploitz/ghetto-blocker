@@ -34,6 +34,18 @@ export function createProxy(ctx: RuntimeContext): { proxy: Proxy } {
     const req = icontext.clientToProxyRequest;
     const host = req.headers.host ?? '';
 
+    // Documents we may have rewritten must never be revalidated back out of
+    // the browser cache (a 304 would resurrect a copy with cosmetics baked
+    // in, e.g. after pausing). Ask upstream for the full body every time.
+    // Done before the pause check so a stale injected copy dies while paused.
+    if (isDocumentRequest(req.headers)) {
+      const outHeaders = icontext.proxyToServerRequestOptions?.headers;
+      if (outHeaders) {
+        delete outHeaders['if-none-match'];
+        delete outHeaders['if-modified-since'];
+      }
+    }
+
     // Globally paused: pass everything through unfiltered.
     if (settings.paused) return callback();
 
@@ -95,6 +107,7 @@ export function createProxy(ctx: RuntimeContext): { proxy: Proxy } {
         icontext.proxyToClientResponse.writeHead(200, {
           'content-type': decoded.contentType,
           'content-length': String(decoded.body.length),
+          'cache-control': 'no-store',
           'x-ghetto-blocker': 'redirect',
         });
         icontext.proxyToClientResponse.end(decoded.body);
@@ -134,9 +147,17 @@ function sendEmpty(icontext: IContext): void {
   icontext.proxyToClientResponse.writeHead(200, {
     'content-type': 'text/plain',
     'content-length': '0',
+    'cache-control': 'no-store',
     'x-ghetto-blocker': 'block',
   });
   icontext.proxyToClientResponse.end();
+}
+
+/** Navigations and frames: the requests whose HTML we may rewrite. */
+function isDocumentRequest(headers: import('node:http').IncomingHttpHeaders): boolean {
+  const dest = String(headers['sec-fetch-dest'] ?? '').toLowerCase();
+  if (dest === 'document' || dest === 'iframe' || dest === 'frame') return true;
+  return dest === '' && String(headers['accept'] ?? '').includes('text/html');
 }
 
 function injectCosmetics(
@@ -180,6 +201,13 @@ function injectCosmetics(
   // emit plain, unchunked-length-free output.
   delete upstream.headers['content-length'];
   delete upstream.headers['content-encoding'];
+  // The body the browser gets is ours, not the origin's: it must not be cached
+  // and revalidated with the origin's validators, or a 304 would bring back
+  // injected markup after settings change (pause, allowlist, cosmetics off).
+  delete upstream.headers['etag'];
+  delete upstream.headers['last-modified'];
+  delete upstream.headers['expires'];
+  upstream.headers['cache-control'] = 'no-store';
 
   // Buffer the whole HTML body: the generic cosmetic rules are indexed by the
   // classes/ids/hrefs the document actually contains, so the engine lookup

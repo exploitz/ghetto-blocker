@@ -31,6 +31,7 @@ const testSettings: Settings = {
 };
 
 let testDataDir: string;
+let lastUpstreamHeaders: http.IncomingHttpHeaders = {};
 let upstream: http.Server;
 let upstreamPort = 0;
 let proxyPort = 0;
@@ -43,6 +44,7 @@ beforeAll(async () => {
   process.env['GHETTO_DATA_DIR'] = testDataDir;
 
   upstream = http.createServer((req, res) => {
+    lastUpstreamHeaders = req.headers;
     if (req.url?.startsWith('/ads/track.js')) {
       res.writeHead(200, { 'content-type': 'application/javascript' });
       res.end('console.log("tracker ran");');
@@ -56,6 +58,9 @@ beforeAll(async () => {
     res.writeHead(200, {
       'content-type': 'text/html; charset=utf-8',
       'content-encoding': zstd ? 'zstd' : 'gzip',
+      etag: 'W/"page-v1"',
+      'last-modified': 'Wed, 01 Jan 2025 00:00:00 GMT',
+      'cache-control': 'private, no-cache',
       'content-length': String(body.length),
       'content-security-policy': "default-src 'self'",
     });
@@ -85,6 +90,7 @@ afterAll(async () => {
 
 function viaProxy(
   path: string,
+  extraHeaders: Record<string, string> = {},
 ): Promise<{ status: number; body: string; headers: http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -94,7 +100,7 @@ function viaProxy(
         method: 'GET',
         // Absolute-form request-target routes through the forward proxy.
         path: `http://127.0.0.1:${upstreamPort}${path}`,
-        headers: { host: `127.0.0.1:${upstreamPort}` },
+        headers: { host: `127.0.0.1:${upstreamPort}`, ...extraHeaders },
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -141,6 +147,22 @@ describe('proxy integration over HTTP', () => {
     expect(res.body).toContain('GENERIC');
     expect(res.body).toContain('ghetto-blocker-cosmetics');
     expect(res.headers['content-encoding']).toBeUndefined();
+  });
+
+  it('makes rewritten documents uncacheable and never revalidates them upstream', async () => {
+    const res = await viaProxy('/page.html', {
+      accept: 'text/html',
+      'if-none-match': 'W/"page-v1"',
+      'if-modified-since': 'Wed, 01 Jan 2025 00:00:00 GMT',
+    });
+    expect(res.status).toBe(200); // a 304 here would have resurrected a cached, injected copy
+    expect(lastUpstreamHeaders['if-none-match']).toBeUndefined();
+    expect(lastUpstreamHeaders['if-modified-since']).toBeUndefined();
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.headers['etag']).toBeUndefined();
+    expect(res.headers['last-modified']).toBeUndefined();
+    // Blocked responses are not cacheable either, so pausing takes effect on reload.
+    expect((await viaProxy('/ads/track.js')).headers['cache-control']).toBe('no-store');
   });
 
   it('strips CSP so injected styles are allowed to run', async () => {
