@@ -323,6 +323,14 @@
 }
 :root[data-theme="cyberpunk"] .leaderboard-row .count { text-shadow: 0 0 8px rgba(0, 240, 255, 0.6); }
 
+:root[data-theme="cyberpunk"] .ad-card {
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  border-color: rgba(0, 240, 255, 0.2);
+}
+:root[data-theme="cyberpunk"] .ad-card:hover { border-color: var(--accent2); box-shadow: 0 0 14px rgba(255, 43, 214, 0.3); }
+:root[data-theme="cyberpunk"] .ad-card .thumb { background: rgba(0, 0, 0, 0.45); }
+:root[data-theme="cyberpunk"] .feed-item .repeat { border-color: rgba(255, 43, 214, 0.5); color: var(--accent2); }
+
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme="cyberpunk"] body::after,
   :root[data-theme="cyberpunk"] main::before,

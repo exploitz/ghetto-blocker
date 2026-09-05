@@ -244,9 +244,26 @@ function timeLabel(ts) {
 
 function appendFeedItem(ev) {
   const feed = $('activityFeed');
+  // Sites that retry a refused request in a loop would otherwise flood the
+  // feed: fold repeats of the newest row into a counter instead.
+  const top = feed.firstElementChild;
+  if (top && top.classList.contains('feed-item') && top.dataset.type === ev.type && top.dataset.host === ev.host) {
+    const n = (Number(top.dataset.repeat) || 1) + 1;
+    top.dataset.repeat = String(n);
+    let pill = top.querySelector('.repeat');
+    if (!pill) {
+      pill = document.createElement('span');
+      pill.className = 'repeat';
+      top.insertBefore(pill, top.querySelector('.time'));
+    }
+    pill.textContent = '×' + n;
+    top.querySelector('.time').textContent = timeLabel(ev.ts || Date.now());
+    return;
+  }
   const item = document.createElement('div');
   item.className = 'feed-item';
   item.dataset.type = ev.type;
+  item.dataset.host = ev.host;
   const typeEl = document.createElement('span');
   typeEl.className = 'type ' + ev.type;
   typeEl.textContent = { block: 'BLOCK', hide: 'CLEAN', poison: 'STRIP', allow: 'ALLOW', click: 'CLICK' }[ev.type] || ev.type.toUpperCase();
@@ -481,31 +498,101 @@ async function loadLeaderboard() {
 // Vault view (AdNauseam)
 // ---------------------------------------------------------------------------
 
+let vaultEntries = [];
+
+function hostOf(url) {
+  try { return new URL(url).hostname; } catch { return url; }
+}
+
+function renderVault() {
+  const q = $('vaultSearch').value.trim().toLowerCase();
+  const list = $('vaultList');
+  list.innerHTML = '';
+  const shown = q
+    ? vaultEntries.filter(e => (e.host + ' ' + hostOf(e.page) + ' ' + (e.title || '') + ' ' + e.url).toLowerCase().includes(q))
+    : vaultEntries;
+  if (!shown.length) {
+    const empty = document.createElement('div');
+    empty.className = 'board-empty';
+    empty.textContent = vaultEntries.length ? 'Nothing matches' : 'No ads clicked yet';
+    list.appendChild(empty);
+    return;
+  }
+  for (const e of shown) {
+    const card = document.createElement('div');
+    card.className = 'ad-card';
+    const thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    if (e.image) {
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.alt = e.title || '';
+      img.src = '/api/adnauseam/thumb?u=' + encodeURIComponent(e.image);
+      img.addEventListener('error', () => { thumb.innerHTML = ''; thumb.appendChild(initialFor(e.host)); });
+      thumb.appendChild(img);
+    } else {
+      thumb.appendChild(initialFor(e.host));
+    }
+    const body = document.createElement('div');
+    body.className = 'body';
+    const title = document.createElement('div');
+    title.className = 'title';
+    title.textContent = e.title || '(no text)';
+    title.title = e.title || '';
+    const net = document.createElement('div');
+    net.className = 'net';
+    net.textContent = e.host;
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    const pg = document.createElement('span'); pg.className = 'page'; pg.textContent = 'on ' + hostOf(e.page);
+    const t = document.createElement('span'); t.className = 'time'; t.textContent = ago(e.ts);
+    meta.append(pg, t);
+    const open = document.createElement('a');
+    open.className = 'open';
+    open.href = e.url;
+    open.target = '_blank';
+    open.rel = 'noopener noreferrer';
+    open.textContent = 'open target';
+    open.title = e.url;
+    body.append(title, net, meta, open);
+    card.append(thumb, body);
+    list.appendChild(card);
+  }
+}
+
+function initialFor(host) {
+  const el = document.createElement('span');
+  el.className = 'initial';
+  el.textContent = (host || '?').replace(/^www\./, '').charAt(0).toUpperCase();
+  return el;
+}
+
 async function loadVault() {
   try {
     const { clicked, entries } = await api('GET', '/api/adnauseam/vault');
-    $('vaultSummary').textContent = fmt(clicked) + ' ads clicked all-time · showing last ' + entries.length;
-    const list = $('vaultList');
-    list.innerHTML = '';
-    if (!entries.length) {
-      const empty = document.createElement('div');
-      empty.className = 'board-empty';
-      empty.textContent = 'No ads clicked yet';
-      list.appendChild(empty);
-      return;
-    }
-    for (const e of entries) {
-      const row = document.createElement('div');
-      row.className = 'vault-row';
-      const t = document.createElement('span'); t.className = 'time'; t.textContent = timeLabel(e.ts);
-      const n = document.createElement('span'); n.className = 'net'; n.textContent = e.host;
-      const pg = document.createElement('span'); pg.className = 'page';
-      try { pg.textContent = 'on ' + new URL(e.page).hostname; } catch { pg.textContent = 'on ' + e.page; }
-      const u = document.createElement('span'); u.className = 'url'; u.textContent = e.url; u.title = e.url;
-      row.append(t, n, pg, u);
-      list.appendChild(row);
-    }
+    vaultEntries = entries;
+    const dayAgo = Date.now() - 86400000;
+    const byNet = {};
+    for (const e of entries) byNet[e.host] = (byNet[e.host] || 0) + 1;
+    const top = Object.entries(byNet).sort((a, b) => b[1] - a[1])[0];
+    $('vaultTotal').textContent = fmt(clicked);
+    $('vaultToday').textContent = fmt(entries.filter(e => e.ts >= dayAgo).length);
+    $('vaultNetworks').textContent = fmt(Object.keys(byNet).length);
+    $('vaultTopNetwork').textContent = top ? top[0] + ' (' + top[1] + ')' : '–';
+    $('vaultSummary').textContent = 'showing the last ' + entries.length + ' of ' + fmt(clicked) + ' clicks';
+    renderVault();
   } catch (e) { notify('Error: ' + e.message); }
+}
+
+function initVault() {
+  $('vaultSearch').addEventListener('input', renderVault);
+  $('btnClearVault').addEventListener('click', async () => {
+    try {
+      await api('DELETE', '/api/adnauseam/vault');
+      notify('Vault cleared');
+      loadVault();
+    } catch (e) { notify('Error: ' + e.message); }
+  });
 }
 
 function initSites() {
@@ -536,6 +623,7 @@ async function init() {
 
   initLists();
   initUpdates();
+  initVault();
   try {
     const state = await api('GET', '/api/state');
     applySettings(state.settings);

@@ -618,3 +618,63 @@ describe('self-update routes', () => {
     expect(installed).toBe(true);
   });
 });
+
+describe('AdNauseam vault creatives', () => {
+  const hdr = { host: `127.0.0.1:${PORT}`, 'x-ghettoblocker': '1' };
+
+  it('keeps the creative image and title announced with a click', async () => {
+    const ctx = makeCtx({ adNauseam: true });
+    const r = await route('POST', '/api/adnauseam/click', hdr, Buffer.from(JSON.stringify({
+      url: 'https://adclick.example/aclk?x=1', page: 'https://news.example/', image: 'https://cdn.example/creative.png', title: '  Buy the thing  ',
+    })), PORT, ctx);
+    expect(r.status).toBe(200);
+    expect(ctx.takePendingClick('https://adclick.example/aclk?x=1')).toEqual({
+      page: 'https://news.example/', image: 'https://cdn.example/creative.png', title: 'Buy the thing',
+    });
+    // non-http image URLs are dropped, not stored
+    await route('POST', '/api/adnauseam/click', hdr, Buffer.from(JSON.stringify({ url: 'https://adclick.example/aclk?x=2', page: 'p', image: 'javascript:1' })), PORT, ctx);
+    expect(ctx.takePendingClick('https://adclick.example/aclk?x=2')).toEqual({ page: 'p' });
+  });
+
+  it('clears the vault but keeps the running total', async () => {
+    const ctx = makeCtx();
+    ctx.stats.totals.clicked = 3;
+    ctx.stats.recordClick({ url: 'https://a.example/1', host: 'a.example', page: 'p', ts: 1 });
+    expect((await route('DELETE', '/api/adnauseam/vault', hdr, Buffer.alloc(0), PORT, ctx)).status).toBe(200);
+    const body = (await route('GET', '/api/adnauseam/vault', { host: `127.0.0.1:${PORT}` }, Buffer.alloc(0), PORT, ctx)).body as { clicked: number; entries: unknown[] };
+    expect(body.entries).toEqual([]);
+    expect(body.clicked).toBe(3);
+  });
+
+  it('serves thumbnails only for creatives that are in the vault', async () => {
+    // A tiny origin serving one PNG.
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+    const origin = http.createServer((req, res) => {
+      if (req.url === '/creative.png') { res.writeHead(200, { 'content-type': 'image/png' }); res.end(png); return; }
+      res.writeHead(404).end();
+    });
+    await new Promise<void>((r) => origin.listen(0, '127.0.0.1', r));
+    const originPort = (origin.address() as AddressInfo).port;
+    const image = `http://127.0.0.1:${originPort}/creative.png`;
+
+    const ctx = makeCtx();
+    const server = createControlServer(ctx, join(process.cwd(), 'public', 'dashboard'));
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const port = (server.address() as AddressInfo).port;
+    const get = (u: string) => fetch(`http://127.0.0.1:${port}${u}`, { headers: { host: `127.0.0.1:${port}` } });
+    try {
+      // Not in the vault yet: refused, and never fetched from the origin.
+      expect((await get('/api/adnauseam/thumb?u=' + encodeURIComponent(image))).status).toBe(404);
+      ctx.stats.recordClick({ url: 'https://adclick.example/aclk', host: 'adclick.example', page: 'p', ts: 1, image });
+      const ok = await get('/api/adnauseam/thumb?u=' + encodeURIComponent(image));
+      expect(ok.status).toBe(200);
+      expect(ok.headers.get('content-type')).toBe('image/png');
+      expect(Buffer.from(await ok.arrayBuffer()).equals(png)).toBe(true);
+      // A URL that is not any vault creative stays refused even if it would resolve.
+      expect((await get('/api/adnauseam/thumb?u=' + encodeURIComponent(`http://127.0.0.1:${originPort}/other.png`))).status).toBe(404);
+    } finally {
+      server.close();
+      origin.close();
+    }
+  });
+});

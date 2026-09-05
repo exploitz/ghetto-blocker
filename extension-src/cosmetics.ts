@@ -23,7 +23,8 @@ import { DOMMonitor } from '@ghostery/adblocker-content';
 import type { DOMUpdate } from '@ghostery/adblocker-content';
 import { handlePseudoDirective, matches, querySelectorAll } from '@ghostery/adblocker-extended-selectors';
 import type { AST } from '@ghostery/adblocker-extended-selectors';
-import { findAdLinks, isAdFrame } from './adfinder.js';
+import { findAds, isAdFrame } from './adfinder.js';
+import type { AdInfo } from './adfinder.js';
 
 interface ExtendedRule {
   id: number;
@@ -42,7 +43,7 @@ interface CosmeticsReply {
 
 interface AdsFoundMessage {
   type: 'adsFound';
-  urls: string[];
+  ads: AdInfo[];
 }
 
 interface CosmeticsMessage {
@@ -78,10 +79,10 @@ declare global {
 
   function reportAds(roots: Element[]): void {
     if (!huntAds) return;
-    const fresh = findAdLinks(roots, adFrame, window.location.hostname).filter((u) => !reportedAds.has(u));
+    const fresh = findAds(roots, adFrame, window.location.hostname).filter((ad) => !reportedAds.has(ad.url));
     if (fresh.length === 0) return;
-    for (const u of fresh) reportedAds.add(u);
-    const message: AdsFoundMessage = { type: 'adsFound', urls: fresh };
+    for (const ad of fresh) reportedAds.add(ad.url);
+    const message: AdsFoundMessage = { type: 'adsFound', ads: fresh };
     try {
       chrome.runtime.sendMessage(message, () => void chrome.runtime.lastError);
     } catch {

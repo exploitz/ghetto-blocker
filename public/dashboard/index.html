@@ -155,13 +155,23 @@ example.com##div:has-text(Sponsored)"></textarea>
          VAULT (AdNauseam)
          ============================================================ -->
     <section class="view" id="view-vault">
-      <div class="card list-card">
+      <div class="counters vault-stats">
+        <div class="counter"><span id="vaultTotal">0</span><label>ads clicked</label></div>
+        <div class="counter"><span id="vaultToday">0</span><label>last 24 h</label></div>
+        <div class="counter"><span id="vaultNetworks">0</span><label>ad networks</label></div>
+        <div class="counter counter-wide"><span id="vaultTopNetwork">–</span><label>most clicked</label></div>
+      </div>
+      <div class="card vault-card">
         <div class="card-head">
-          <h3>AdNauseam vault</h3>
-          <span class="sub" id="vaultSummary">ads clicked in the background</span>
+          <h3>Vault</h3>
+          <span class="sub" id="vaultSummary">every ad clicked in the background</span>
+          <div class="vault-tools">
+            <input type="text" id="vaultSearch" placeholder="filter by network, page or text">
+            <button id="btnClearVault">Clear</button>
+          </div>
         </div>
-        <p class="hint" id="vaultHint">AdNauseam is off. Turn it on in the rail: ads then load hidden, trackers stay blocked, and every ad found gets clicked with a random delay.</p>
-        <div class="vault" id="vaultList"></div>
+        <p class="hint" id="vaultHint">AdNauseam is off. Turn it on in the rail: ads then load hidden, trackers stay blocked, and every ad found gets clicked with a random delay. What it clicked shows up here.</p>
+        <div class="vault-grid" id="vaultList"></div>
       </div>
     </section>
 

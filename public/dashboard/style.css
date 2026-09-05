@@ -215,6 +215,16 @@ main {
 .feed-item .type.click { color: var(--success); }
 .feed-item .host { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .feed-item .time { margin-left: auto; color: var(--text-dim); flex-shrink: 0; }
+.feed-item .repeat {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  line-height: 1.5;
+}
 .feed-items[data-filter="block"] .feed-item:not([data-type="block"]),
 .feed-items[data-filter="hide"] .feed-item:not([data-type="hide"]),
 .feed-items[data-filter="poison"] .feed-item:not([data-type="poison"]),
@@ -287,22 +297,55 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .btn-file-label input[type="file"] { display: none; }
 
 /* ---- Vault ---- */
-#view-vault .card { flex: 1; }
+#view-vault .vault-card { flex: 1; }
+.vault-stats { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 2fr); }
+.counter-wide span { font-size: 0.95rem; padding-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hint { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
-.vault { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
-.vault-row {
+.vault-tools { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.vault-tools input { width: 260px; }
+.vault-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: grid;
-  grid-template-columns: 80px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 12px;
-  padding: 7px 8px;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-  align-items: baseline;
+  align-content: start;
+  padding-right: 4px;
 }
-.vault-row .time { color: var(--text-dim); font-variant-numeric: tabular-nums; }
-.vault-row .net { color: var(--success); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vault-row .page { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vault-row .url { grid-column: 2 / -1; font-family: monospace; font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  min-height: 0;
+}
+.ad-card .thumb {
+  height: 118px;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+.ad-card .thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.ad-card .thumb .initial {
+  font-size: 2.2rem;
+  font-weight: bold;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+.ad-card .body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.ad-card .title { color: var(--text); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-card .net { color: var(--success); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-card .meta { display: flex; justify-content: space-between; gap: 8px; color: var(--text-dim); }
+.ad-card .meta .page { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-card .meta .time { flex-shrink: 0; }
+.ad-card .open { color: var(--accent2); text-decoration: none; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+.ad-card .open:hover { text-decoration: underline; }
 
 /* ---- Managed lists ---- */
 ul.managed-list { list-style: none; flex: 1; min-height: 0; overflow-y: auto; }
@@ -355,6 +398,8 @@ ul.managed-list li.empty { color: var(--text-dim); }
   .nav-btn { border-left: none; border-bottom: 2px solid transparent; }
   .nav-btn.active { border-bottom-color: var(--accent); }
   .counters { grid-template-columns: repeat(3, 1fr); }
+  .vault-stats { grid-template-columns: repeat(2, 1fr); }
+  .vault-tools input { width: 150px; }
   .split, .split.even, .quick { grid-template-columns: 1fr; }
   main { overflow: visible; }
 }

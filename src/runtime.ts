@@ -113,13 +113,20 @@ export interface RuntimeContext {
    * AdNauseam: announce that the extension is about to fetch this ad
    * click-through URL from `page`, so the proxy lets it through untouched.
    */
-  registerPendingClick(url: string, page: string): void;
-  /** Consume a pending click for this URL (returns the page it came from), or undefined. */
-  takePendingClick(url: string): { page: string } | undefined;
+  registerPendingClick(url: string, page: string, meta?: { image?: string; title?: string }): void;
+  /** Consume a pending click for this URL (returns what was announced), or undefined. */
+  takePendingClick(url: string): PendingClick | undefined;
   /** App version string shown in the dashboard. */
   version: string;
   /** Self-update status and hooks. */
   updates: Updates;
+}
+
+/** What the extension announced about an ad it is about to click. */
+export interface PendingClick {
+  page: string;
+  image?: string;
+  title?: string;
 }
 
 /** How long an announced click stays valid before the proxy forgets it. */
@@ -203,24 +210,25 @@ export function createRuntimeContext({
     return userEngine.match(req);
   }
 
-  // Pending AdNauseam clicks: url -> { page, expires }
-  const pendingClicks = new Map<string, { page: string; expires: number }>();
+  // Pending AdNauseam clicks: url -> announcement + expiry
+  const pendingClicks = new Map<string, PendingClick & { expires: number }>();
 
-  function registerPendingClick(url: string, page: string): void {
+  function registerPendingClick(url: string, page: string, meta: { image?: string; title?: string } = {}): void {
     const now = Date.now();
     for (const [key, entry] of pendingClicks) {
       if (entry.expires < now) pendingClicks.delete(key);
     }
-    pendingClicks.set(canonicalUrl(url), { page, expires: now + PENDING_CLICK_TTL_MS });
+    pendingClicks.set(canonicalUrl(url), { page, ...meta, expires: now + PENDING_CLICK_TTL_MS });
   }
 
-  function takePendingClick(url: string): { page: string } | undefined {
+  function takePendingClick(url: string): PendingClick | undefined {
     const key = canonicalUrl(url);
     const entry = pendingClicks.get(key);
     if (!entry) return undefined;
     pendingClicks.delete(key);
     if (entry.expires < Date.now()) return undefined;
-    return { page: entry.page };
+    const { expires: _expires, ...announced } = entry;
+    return announced;
   }
 
   function getCosmetics(params: CosmeticsParams): CosmeticsResult {

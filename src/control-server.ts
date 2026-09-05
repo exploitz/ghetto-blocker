@@ -333,13 +333,21 @@ export async function route(
     if (!ctx.settings.adNauseam) {
       return { status: 409, body: { error: 'AdNauseam mode is off' } };
     }
-    ctx.registerPendingClick(target.href, body.page.slice(0, 512));
+    const meta: { image?: string; title?: string } = {};
+    if (typeof body.image === 'string' && /^https?:\/\//i.test(body.image)) meta.image = body.image.slice(0, 2048);
+    if (typeof body.title === 'string' && body.title.trim()) meta.title = body.title.trim().slice(0, 120);
+    ctx.registerPendingClick(target.href, body.page.slice(0, 512), meta);
     return { status: 200, body: { ok: true } };
   }
 
   if (m === 'GET' && pathname === '/api/adnauseam/vault') {
     const body: VaultResponse = { clicked: ctx.stats.totals.clicked, entries: ctx.stats.getVault() };
     return { status: 200, body };
+  }
+
+  if (m === 'DELETE' && pathname === '/api/adnauseam/vault') {
+    ctx.stats.clearVault();
+    return { status: 200, body: { ok: true } };
   }
 
   if (m === 'PUT' && pathname === '/api/rules') {
@@ -512,6 +520,37 @@ async function readBody(req: http.IncomingMessage, limit = REQUEST_BODY_LIMIT): 
   return Buffer.concat(chunks);
 }
 
+/** Creative thumbnails: small in-memory cache so the vault grid doesn't refetch on every open. */
+const THUMB_CACHE_CAP = 200;
+const THUMB_MAX_BYTES = 1_500_000;
+const thumbCache = new Map<string, { type: string; body: Buffer } | null>();
+
+async function fetchThumb(url: string): Promise<{ type: string; body: Buffer } | null> {
+  const cached = thumbCache.get(url);
+  if (cached !== undefined) return cached;
+  let result: { type: string; body: Buffer } | null = null;
+  try {
+    const r = await fetch(url, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(8000),
+      headers: { accept: 'image/*', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0' },
+    });
+    const type = r.headers.get('content-type') ?? '';
+    if (r.ok && type.startsWith('image/')) {
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length <= THUMB_MAX_BYTES) result = { type, body: buf };
+    }
+  } catch {
+    result = null;
+  }
+  if (thumbCache.size >= THUMB_CACHE_CAP) {
+    const oldest = thumbCache.keys().next().value;
+    if (oldest !== undefined) thumbCache.delete(oldest);
+  }
+  thumbCache.set(url, result);
+  return result;
+}
+
 /** Serve a file from the dashboard directory. */
 async function serveStatic(
   pathname: string,
@@ -629,6 +668,30 @@ export function createControlServer(
         sseClients.add(res);
         req.on('close', () => sseClients.delete(res));
         // Keep the connection open -- do NOT call res.end()
+        return;
+      }
+
+      // ---- AdNauseam creative thumbnails ----
+      // Fetched server-side so they render even when the browser would block
+      // the ad host. Only URLs recorded in the vault are allowed (no SSRF).
+      if (req.method === 'GET' && pathname === '/api/adnauseam/thumb') {
+        const host = String(req.headers['host'] ?? '');
+        if (!isValidHost(host, port)) {
+          res.writeHead(403).end();
+          return;
+        }
+        const wanted = new URL(rawUrl, 'http://127.0.0.1').searchParams.get('u') ?? '';
+        if (!ctx.stats.getVault().some((e) => e.image === wanted)) {
+          res.writeHead(404).end();
+          return;
+        }
+        const thumb = await fetchThumb(wanted);
+        if (!thumb) {
+          res.writeHead(502).end();
+          return;
+        }
+        res.writeHead(200, { 'content-type': thumb.type, 'cache-control': 'private, max-age=86400' });
+        res.end(thumb.body);
         return;
       }
 

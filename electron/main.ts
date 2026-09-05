@@ -133,7 +133,8 @@ function setupAutoUpdate(ctx: BootstrapResult['ctx']): void {
 }
 
 function installUpdate(): void {
-  void (booted?.stop() ?? Promise.resolve()).finally(() => autoUpdater.quitAndInstall());
+  // Silent install, relaunch when done: no installer wizard for an update.
+  void (booted?.stop() ?? Promise.resolve()).finally(() => autoUpdater.quitAndInstall(true, true));
 }
 
 // ---- CA install helpers -------------------------------------------------

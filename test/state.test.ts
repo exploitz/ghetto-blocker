@@ -121,14 +121,14 @@ describe('saveStats / loadStats', () => {
   it('persists the AdNauseam vault (newest first on read) and caps it', async () => {
     const stats = createStats();
     for (let i = 0; i < 205; i++) {
-      stats.recordClick({ url: `https://ad.example/${i}`, host: 'ad.example', page: 'p', ts: i });
+      stats.recordClick({ url: `https://ad.example/${i}`, host: 'ad.example', page: 'p', ts: i, image: `https://cdn.example/${i}.png`, title: `ad ${i}` });
     }
     expect(stats.getVault()).toHaveLength(200);
     expect(stats.getVault()[0]?.url).toBe('https://ad.example/204');
     await saveStats(stats);
     const loaded = await loadStats();
     expect(loaded.getVault()).toHaveLength(200);
-    expect(loaded.getVault()[0]?.url).toBe('https://ad.example/204');
+    expect(loaded.getVault()[0]).toMatchObject({ url: 'https://ad.example/204', image: 'https://cdn.example/204.png', title: 'ad 204' });
   });
 
   it('keeps the "since" timestamp so totals read as all-time after a restart', async () => {

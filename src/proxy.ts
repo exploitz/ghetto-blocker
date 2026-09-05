@@ -65,7 +65,14 @@ export function createProxy(ctx: RuntimeContext): { proxy: Proxy } {
     const click = ctx.takePendingClick(url);
     if (click) {
       stats.totals.clicked++;
-      stats.recordClick({ url, host: hostname, page: click.page, ts: Date.now() });
+      stats.recordClick({
+        url,
+        host: hostname,
+        page: click.page,
+        ts: Date.now(),
+        ...(click.image ? { image: click.image } : {}),
+        ...(click.title ? { title: click.title } : {}),
+      });
       ctx.recordEvent({ type: 'click', host: hostname, url, rule: undefined });
       return callback();
     }

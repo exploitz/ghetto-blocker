@@ -218,15 +218,15 @@ function scheduleClicks() {
     persistQueue();
     if (job) {
       clickTimestamps.push(now);
-      await clickAd(job.url, job.page);
+      await clickAd(job.url, job.page, job.image, job.title);
     }
     scheduleClicks();
   }, delay);
 }
 
-async function clickAd(url, page) {
+async function clickAd(url, page, image, title) {
   try {
-    await postJson('/api/adnauseam/click', { url, page });
+    await postJson('/api/adnauseam/click', { url, page, image, title });
   } catch (err) {
     // Mode switched off (409) or server gone: drop the click.
     return;
@@ -244,13 +244,14 @@ async function clickAd(url, page) {
   }
 }
 
-async function enqueueAds(urls, page) {
+async function enqueueAds(ads, page) {
   await hydrateQueue();
-  for (const url of urls) {
+  for (const ad of ads) {
+    const url = typeof ad === 'string' ? ad : ad?.url;
     if (typeof url !== 'string' || seenAds.has(url)) continue;
     if (seenAds.size >= CLICK_SEEN_CAP) seenAds.clear();
     seenAds.add(url);
-    clickQueue.push({ url, page });
+    clickQueue.push({ url, page, image: ad?.image, title: ad?.title });
   }
   persistQueue();
   scheduleClicks();
@@ -281,7 +282,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'adsFound') {
-    enqueueAds(msg.urls ?? [], sender.tab?.url ?? sender.url ?? '').then(() => sendResponse({ ok: true }));
+    enqueueAds(msg.ads ?? msg.urls ?? [], sender.tab?.url ?? sender.url ?? '').then(() => sendResponse({ ok: true }));
     return true;
   }
 

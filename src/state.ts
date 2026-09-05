@@ -164,6 +164,10 @@ export interface VaultEntry {
   /** Page the ad was found on. */
   page: string;
   ts: number;
+  /** Creative image URL, when the ad had one. */
+  image?: string;
+  /** Ad copy: alt text, title or link text. */
+  title?: string;
 }
 
 export interface Stats {
@@ -190,6 +194,8 @@ export interface Stats {
   recordClick(entry: VaultEntry): void;
   /** Clicked ads, newest first. */
   getVault(): VaultEntry[];
+  /** Forget the clicked ads (the running total is kept). */
+  clearVault(): void;
 }
 
 function ensureSite(stats: Pick<Stats, 'sites'>, host: string): void {
@@ -289,6 +295,10 @@ export function createStats(
     return [...vault].reverse();
   }
 
+  function clearVault(): void {
+    vault.length = 0;
+  }
+
   return {
     totals,
     since,
@@ -302,6 +312,7 @@ export function createStats(
     getBrokenReports,
     recordClick,
     getVault,
+    clearVault,
   };
 }
 

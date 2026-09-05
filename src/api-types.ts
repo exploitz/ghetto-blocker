@@ -86,6 +86,10 @@ export interface ClickRequest {
   url: string;
   /** Page (URL or host) the ad was found on. */
   page: string;
+  /** Creative image URL, when the ad had one. */
+  image?: string;
+  /** Ad copy: alt text, title or link text. */
+  title?: string;
 }
 
 /** Response body for GET /api/adnauseam/vault. */
