@@ -10,6 +10,9 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body { height: 100%; }
+:root { scrollbar-color: var(--border) transparent; }
+main, .feed-items, .vault-grid, .leaderboard, ul.managed-list, textarea { scrollbar-width: thin; }
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -31,17 +34,18 @@ a { color: var(--accent2); }
 .rail {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px 14px;
+  gap: 10px;
+  padding: 12px 14px;
   background: var(--surface);
   border-right: 1px solid var(--border);
   overflow-y: auto;
+  scrollbar-width: thin;
 }
 .brand { display: flex; align-items: center; gap: 10px; }
 .logo { width: 34px; height: 34px; flex-shrink: 0; }
 .brand h1 { font-size: 1rem; letter-spacing: 0.08em; color: var(--accent); line-height: 1.2; }
 
-.status-row { display: flex; flex-direction: column; gap: 10px; }
+.status-row { display: flex; flex-direction: column; gap: 8px; }
 .status-badge {
   font-size: 11px;
   font-weight: bold;
@@ -56,7 +60,7 @@ a { color: var(--accent2); }
 .status-badge.paused { border-color: var(--warn); color: var(--warn); }
 .btn-pause { width: 100%; padding: 10px 12px; font-size: 14px; letter-spacing: 0.08em; }
 
-.toggles { display: flex; flex-direction: column; gap: 6px; }
+.toggles { display: flex; flex-direction: column; gap: 4px; }
 .toggles label {
   display: flex;
   align-items: center;
@@ -78,7 +82,7 @@ nav.views { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
   font-family: inherit;
   font-size: 14px;
   letter-spacing: 0.08em;
-  padding: 9px 12px;
+  padding: 7px 12px;
   text-align: left;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
@@ -86,10 +90,10 @@ nav.views { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
 .nav-btn.active { color: var(--accent); border-left-color: var(--accent); background: var(--surface2); }
 
 .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
-.lists-block { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.lists-block { display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px; }
 .lists-block button { width: 100%; }
 .meta { font-size: 12px; color: var(--text-dim); }
-.update-block { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.update-block { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
 .update-block button { width: 100%; }
 .since { font-size: 12px; color: var(--text-dim); margin-top: -6px; padding-left: 2px; }
 .field-label { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); }
