@@ -43,12 +43,19 @@ inside the page.
 3. Start your browser through the proxy:
 
    ```
-   chrome.exe --proxy-server="http://127.0.0.1:8080" --proxy-bypass-list="<-loopback>" --disable-quic
+   chrome.exe --proxy-server="http://127.0.0.1:8080" --disable-quic
    ```
 
    Put those flags in the shortcut you normally launch the browser with. A
    browser started without them is unfiltered. Don't set the proxy
    system-wide: non-HTTP apps can't go through an HTTP proxy and will break.
+   Loopback addresses bypass the proxy by default, which is what the
+   dashboard and the extension rely on; don't add `<-loopback>` to a bypass
+   list, that flag does the opposite of what it looks like.
+
+   If your browser has its own ad blocker (Vivaldi and Brave do), turn it
+   off. Two blockers double the work and make it impossible to tell which
+   one did what.
 
    `--disable-quic` matters. Chromium speaks HTTP/3 over UDP when it can,
    and a TCP proxy can't intercept that. (You can also disable QUIC under
@@ -187,4 +194,4 @@ Read this part.
 | Ads on YouTube / HTTPS sites | QUIC is still on. |
 | Ad boxes appear after the page loads | The extension isn't loaded, or its popup dot is red (app not running). |
 | A site won't load at all | Probably certificate pinning. Add it to bypass hosts. |
-| Pausing doesn't seem to change a page | Reload it. Pages already open keep the CSS they were given. |
+| Pausing doesn't seem to change a page | Reload it; pages already open keep the CSS they were given. If ads still don't show, the browser's own blocker is doing it. |
