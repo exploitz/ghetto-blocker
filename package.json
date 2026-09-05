@@ -63,6 +63,10 @@
       {
         "from": "electron/tray-icon.png",
         "to": "tray-icon.png"
+      },
+      {
+        "from": "scripts/uninstall-ca.ps1",
+        "to": "scripts/uninstall-ca.ps1"
       }
     ],
     "win": {
@@ -80,7 +84,8 @@
       "oneClick": false,
       "perMachine": true,
       "allowToChangeInstallationDirectory": true,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "include": "build/installer.nsh"
     },
     "publish": [
       {

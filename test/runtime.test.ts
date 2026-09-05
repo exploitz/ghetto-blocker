@@ -305,3 +305,28 @@ describe('AdNauseam mode', () => {
     expect(ctx.takePendingClick('https://adclick.example/other')).toBeUndefined();
   });
 });
+
+describe('running without lists', () => {
+  it('reports the download error until an update succeeds', async () => {
+    let fail = true;
+    const parse = (rules: string) => FiltersEngine.parse(rules, { loadNetworkFilters: true, loadCosmeticFilters: true, enableCompression: false });
+    const ctx = createRuntimeContext({
+      baseEngine: parse(''),
+      listsError: 'getaddrinfo ENOTFOUND raw.githubusercontent.com',
+      rebuildEngines: async () => {
+        if (fail) throw new Error('still offline');
+        return { base: parse('||ad.example^'), privacy: parse(''), builtAt: 5000 };
+      },
+      settings: { ...defaultSettings },
+      stats: createStats(),
+    });
+    expect(ctx.lists.error).toContain('ENOTFOUND');
+    await expect(ctx.updateLists()).rejects.toThrow('still offline');
+    expect(ctx.lists.error).toBe('still offline');
+    fail = false;
+    await ctx.updateLists();
+    expect(ctx.lists.error).toBeUndefined();
+    expect(ctx.lists.builtAt).toBe(5000);
+    expect(ctx.matchRequest({ type: 'script', url: 'https://ad.example/a.js', sourceUrl: 'https://p.example' }).match).toBe(true);
+  });
+});

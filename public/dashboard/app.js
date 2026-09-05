@@ -75,9 +75,85 @@ function applyState(state) {
     $('sinceLine').textContent = 'all-time totals since ' + new Date(state.since).toLocaleDateString();
   }
   if (state.lists) {
-    $('listsAge').textContent = 'updated ' + ago(state.lists.builtAt);
+    const el = $('listsAge');
+    if (state.lists.error) {
+      el.textContent = 'not downloaded yet (retrying)';
+      el.title = state.lists.error;
+      el.classList.add('warn');
+    } else {
+      el.textContent = 'updated ' + ago(state.lists.builtAt);
+      el.title = '';
+      el.classList.remove('warn');
+    }
   }
   if (state.update) applyUpdateStatus(state.version, state.update);
+  if (state.setup) applySetup(state.setup);
+}
+
+// ---------------------------------------------------------------------------
+// First-run checklist
+// ---------------------------------------------------------------------------
+
+let setupState = null;
+let browsersState = [];
+
+function setupHiddenByUser() {
+  try { return localStorage.getItem('gb.setupHidden') === JSON.stringify(setupSignature()); } catch (_) { return false; }
+}
+function setupSignature() {
+  if (!setupState) return null;
+  const browserOk = browsersState.some(b => b.running === 'proxied') || !!setupState.trafficSeenAt;
+  return [setupState.caTrusted, browserOk, !!setupState.extensionSeenAt];
+}
+
+function markStep(id, state) {
+  const li = $(id);
+  li.classList.toggle('done', state === true);
+  li.classList.toggle('unknown', state === null);
+}
+
+function applySetup(setup) {
+  setupState = setup;
+  $('extensionPath').textContent = setup.extensionDir;
+  $('btnInstallCa').hidden = !setup.canAct;
+  $('btnOpenExtDir').hidden = !setup.canAct;
+  renderSetup();
+}
+
+function renderSetup() {
+  if (!setupState) return;
+  const browserOk = browsersState.some(b => b.running === 'proxied') || !!setupState.trafficSeenAt;
+  markStep('stepCa', setupState.caTrusted);
+  markStep('stepBrowser', browserOk);
+  markStep('stepExt', !!setupState.extensionSeenAt);
+  const complete = setupState.caTrusted !== false && browserOk && !!setupState.extensionSeenAt;
+  $('setupCard').hidden = complete || setupHiddenByUser();
+}
+
+function initSetup() {
+  $('btnHideSetup').addEventListener('click', () => {
+    try { localStorage.setItem('gb.setupHidden', JSON.stringify(setupSignature())); } catch (_) { /* ignore */ }
+    $('setupCard').hidden = true;
+  });
+  $('btnInstallCa').addEventListener('click', async () => {
+    const btn = $('btnInstallCa');
+    btn.disabled = true;
+    btn.textContent = 'Waiting for Windows…';
+    try {
+      const { caTrusted } = await api('POST', '/api/setup/install-ca');
+      notify(caTrusted ? 'Certificate trusted' : 'Certificate still not trusted. Accept the admin prompt and try again.');
+      refreshCounters();
+    } catch (e) { notify('Error: ' + e.message); }
+    btn.disabled = false;
+    btn.textContent = 'Install certificate';
+  });
+  $('btnOpenExtDir').addEventListener('click', async () => {
+    try { await api('POST', '/api/setup/open-extension-dir'); } catch (e) { notify('Error: ' + e.message); }
+  });
+  $('btnCopyExtDir').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('extensionPath').textContent); notify('Path copied'); }
+    catch (_) { notify('Could not copy; select the path and copy it'); }
+  });
 }
 
 /** Opening the dashboard is a good moment to look for a release, if it has been a while. */
@@ -363,7 +439,9 @@ function initSSE() {
   es.onmessage = (ev) => {
     let data;
     try { data = JSON.parse(ev.data); } catch (_) { return; }
-    appendFeedItem(data);
+    // ALLOW events are never shown (no chip for them); keeping them out of the
+    // DOM also lets repeats of a blocked host fold into one row.
+    if (data.type !== 'allow') appendFeedItem(data);
     if (data.type in buckets[0]) buckets[0][data.type]++;
     // Coalesce refreshes: bursts of events would otherwise hammer the API.
     if (!counterRefreshTimer) {
@@ -612,11 +690,41 @@ function initVault() {
 // Browser launcher
 // ---------------------------------------------------------------------------
 
+function browserButton(b, after) {
+  const btn = document.createElement('button');
+  btn.textContent = b.name;
+  btn.className = b.running === 'unproxied' ? 'unproxied' : b.running === 'proxied' ? 'proxied' : '';
+  btn.title = b.running === 'unproxied' ? b.name + ' is running without the proxy: quit it first'
+    : b.running === 'proxied' ? b.name + ' is already running through the proxy'
+    : 'Start ' + b.name + ' through the proxy';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const r = await api('POST', '/api/browsers/launch', { id: b.id });
+      notify(r.alreadyProxied ? r.name + ' is already running through the proxy' : 'Started ' + r.name + ' through the proxy');
+    } catch (e) { notify(e.message); }
+    btn.disabled = false;
+    after();
+  });
+  return btn;
+}
+
 async function loadBrowsers() {
   const box = $('browserButtons');
+  const setupBox = $('setupBrowserButtons');
   try {
     const { browsers, flags } = await api('GET', '/api/browsers');
+    browsersState = browsers;
     box.innerHTML = '';
+    setupBox.innerHTML = '';
+    for (const b of browsers) setupBox.appendChild(browserButton(b, loadBrowsers));
+    if (!browsers.length) {
+      const f = document.createElement('span');
+      f.className = 'hint';
+      f.textContent = 'start it with: ' + flags.join(' ');
+      setupBox.appendChild(f);
+    }
+    renderSetup();
     if (!browsers.length) {
       const hint = document.createElement('span');
       hint.className = 'hint';
@@ -624,24 +732,7 @@ async function loadBrowsers() {
       box.appendChild(hint);
       return;
     }
-    for (const b of browsers) {
-      const btn = document.createElement('button');
-      btn.textContent = b.name;
-      btn.className = b.running === 'unproxied' ? 'unproxied' : b.running === 'proxied' ? 'proxied' : '';
-      btn.title = b.running === 'unproxied' ? b.name + ' is running without the proxy: quit it first'
-        : b.running === 'proxied' ? b.name + ' is already running through the proxy'
-        : 'Start ' + b.name + ' through the proxy';
-      btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        try {
-          const r = await api('POST', '/api/browsers/launch', { id: b.id });
-          notify(r.alreadyProxied ? r.name + ' is already running through the proxy' : 'Started ' + r.name + ' through the proxy');
-        } catch (e) { notify(e.message); }
-        btn.disabled = false;
-        loadBrowsers();
-      });
-      box.appendChild(btn);
-    }
+    for (const b of browsers) box.appendChild(browserButton(b, loadBrowsers));
   } catch (e) {
     box.textContent = '';
   }
@@ -676,6 +767,7 @@ async function init() {
   initLists();
   initUpdates();
   initVault();
+  initSetup();
   try {
     const state = await api('GET', '/api/state');
     applySettings(state.settings);

@@ -692,3 +692,36 @@ describe('browser launcher routes', () => {
     expect((await req('POST', '/api/browsers/launch', { body: { id: 'netscape' } })).status).toBe(404);
   });
 });
+
+describe('setup checklist', () => {
+  it('reports setup state and that it cannot act in headless mode', async () => {
+    const r = await req('GET', '/api/state');
+    const { setup, lists } = r.body as { setup: { caTrusted: null; extensionSeenAt: null; trafficSeenAt: null; canAct: boolean; extensionDir: string }; lists: { error?: string } };
+    expect(setup).toMatchObject({ caTrusted: null, extensionSeenAt: null, trafficSeenAt: null, canAct: false });
+    expect(setup.extensionDir).toContain('extension');
+    expect(lists.error).toBeUndefined();
+    expect((await req('POST', '/api/setup/install-ca')).status).toBe(409);
+    expect((await req('POST', '/api/setup/open-extension-dir')).status).toBe(409);
+  });
+
+  it('remembers the first contact from the extension', async () => {
+    const ctx = makeCtx();
+    expect(ctx.setup.extensionSeenAt).toBeNull();
+    await route('POST', '/api/cosmetics', { host: `127.0.0.1:${PORT}`, 'x-ghettoblocker': '1' }, Buffer.from(JSON.stringify({ url: 'https://site.example/' })), PORT, ctx);
+    expect(ctx.setup.extensionSeenAt).toBeGreaterThan(0);
+    expect(ctx.settings.extensionSeenAt).toBe(ctx.setup.extensionSeenAt);
+  });
+
+  it('runs the desktop hooks when they are installed', async () => {
+    const ctx = makeCtx();
+    let opened = false;
+    ctx.setup.installCa = async () => { ctx.setup.caTrusted = true; };
+    ctx.setup.openExtensionDir = () => { opened = true; };
+    const hdr = { host: `127.0.0.1:${PORT}`, 'x-ghettoblocker': '1' };
+    const r = await route('POST', '/api/setup/install-ca', hdr, Buffer.alloc(0), PORT, ctx);
+    expect((r.body as { caTrusted: boolean }).caTrusted).toBe(true);
+    expect((await route('POST', '/api/setup/open-extension-dir', hdr, Buffer.alloc(0), PORT, ctx)).status).toBe(200);
+    expect(opened).toBe(true);
+    expect(((await route('GET', '/api/state', { host: `127.0.0.1:${PORT}` }, Buffer.alloc(0), PORT, ctx)).body as { setup: { canAct: boolean } }).setup.canAct).toBe(true);
+  });
+});

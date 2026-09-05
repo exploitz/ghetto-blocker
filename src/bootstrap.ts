@@ -10,7 +10,9 @@
 import http from 'node:http';
 import { config } from './config.js';
 import { createControlServer } from './control-server.js';
+import { FiltersEngine } from '@ghostery/adblocker';
 import { buildEngines, loadEngines } from './engine.js';
+import type { Engines } from './engine.js';
 import { installSharedLeafKey } from './leaf-keys.js';
 import { createProxy } from './proxy.js';
 import type { RuntimeContext } from './runtime.js';
@@ -19,6 +21,19 @@ import { loadSettings, loadStats, saveStats } from './state.js';
 
 /** How often the running totals are written to stats.json. */
 const STATS_FLUSH_MS = 30_000;
+
+/** How often to retry the list download when the first one failed (offline first start). */
+const LISTS_RETRY_MS = 5 * 60 * 1000;
+
+/**
+ * Filter lists could not be downloaded (first start with no network). Start
+ * anyway on empty engines so the dashboard and the browser still work, and
+ * let the retry loop fill the lists in when the network comes back.
+ */
+function emptyEngines(): Engines {
+  const opts = { loadNetworkFilters: true, loadCosmeticFilters: true, enableCompression: false };
+  return { base: FiltersEngine.parse('', opts), privacy: FiltersEngine.parse('', opts), builtAt: 0 };
+}
 
 /** Optional startup overrides. */
 export interface BootstrapOptions {
@@ -30,6 +45,8 @@ export interface BootstrapOptions {
   dashboardDir?: string;
   /** App version shown in the dashboard (Electron passes app.getVersion()). */
   version?: string;
+  /** Where the unpacked extension lives (shown in the setup checklist). */
+  extensionDir?: string;
 }
 
 /** Return value of bootstrap(). */
@@ -49,7 +66,16 @@ export interface BootstrapResult {
  * translating errors into user-visible messages (console vs. dialog).
  */
 export async function bootstrap(options: BootstrapOptions = {}): Promise<BootstrapResult> {
-  const [engines, settings, stats] = await Promise.all([loadEngines(config), loadSettings(), loadStats()]);
+  let listsError: string | undefined;
+  const [engines, settings, stats] = await Promise.all([
+    loadEngines(config).catch((err: unknown) => {
+      listsError = err instanceof Error ? err.message : String(err);
+      console.warn(`[engine] filter lists unavailable (${listsError}); starting without them and retrying.`);
+      return emptyEngines();
+    }),
+    loadSettings(),
+    loadStats(),
+  ]);
   const ctx = createRuntimeContext({
     baseEngine: engines.base,
     privacyEngine: engines.privacy,
@@ -57,10 +83,18 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
     rebuildEngines: () => buildEngines(config),
     version: options.version,
     proxyPort: config.proxyPort,
+    listsError,
+    extensionDir: options.extensionDir,
     settings,
     stats,
   });
   await ctx.loadPersistedUserRules();
+
+  // Keep trying to get real lists while we are running on empty engines.
+  const listsTimer = setInterval(() => {
+    if (ctx.lists.error) ctx.updateLists().catch(() => { /* lists.error carries it */ });
+  }, LISTS_RETRY_MS);
+  listsTimer.unref();
 
   // Totals survive restarts: flush periodically and on stop.
   const statsTimer = setInterval(() => {
@@ -92,6 +126,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
 
   async function stop(): Promise<void> {
     clearInterval(statsTimer);
+    clearInterval(listsTimer);
     controlServer.close();
     proxy.close();
     await saveStats(stats).catch(() => { /* best-effort */ });

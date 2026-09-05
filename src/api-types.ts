@@ -1,5 +1,5 @@
 import type { Settings, StatTotals, SiteStat, ActivityEvent, BrokenReport, VaultEntry } from './state.js';
-import type { ExtendedRule, UpdateStatus } from './runtime.js';
+import type { ExtendedRule, ListsState, SetupState, UpdateStatus } from './runtime.js';
 
 /** Response body for GET /api/state. */
 export interface StateResponse {
@@ -8,12 +8,21 @@ export interface StateResponse {
   totals: StatTotals;
   /** When the totals started counting (epoch ms). */
   since: number;
-  /** Filter-list freshness. */
-  lists: { builtAt: number };
+  /** Filter-list freshness (and the error when running without lists). */
+  lists: ListsState;
   /** Running app version. */
   version: string;
   /** Self-update status (desktop app). */
   update: UpdateStatus;
+  /** First-run checklist state. */
+  setup: {
+    caTrusted: SetupState['caTrusted'];
+    trafficSeenAt: SetupState['trafficSeenAt'];
+    extensionSeenAt: SetupState['extensionSeenAt'];
+    extensionDir: string;
+    /** True in the desktop app, where the checklist can act (install CA, open folder). */
+    canAct: boolean;
+  };
 }
 
 /** Response body for GET /api/stats (full detail). */

@@ -51,6 +51,8 @@ export interface Settings {
    * Matched by exact host or subdomain suffix.
    */
   bypassHosts: string[];
+  /** When the companion extension last talked to the control server (setup checklist). */
+  extensionSeenAt?: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -58,7 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   injectCosmetics: true,
   stripCSP: true,
   antiAnalytics: true,
-  theme: 'terminal',
+  theme: 'daylight',
   controlPort: 8081,
   autostart: false,
   adNauseam: false,

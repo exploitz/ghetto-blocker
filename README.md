@@ -9,11 +9,11 @@ traffic with the same lists uBlock uses (EasyList, EasyPrivacy, the uBlock
 Origin lists) and injects the element-hiding CSS itself. The browser can't
 take that away because the browser never sees it.
 
-Works with any Chromium browser (Vivaldi, Chrome, Edge, Brave) on Windows.
-A companion extension is included; it handles the parts that need to run
-inside the page.
+Works with any Chromium browser (Vivaldi, Chrome, Edge, Brave) on Windows 10
+or 11. A companion extension is included; it handles the parts that need to
+run inside the page.
 
-![Dashboard overview, Cyberpunk theme](docs/screenshots/overview-cyberpunk.png)
+![Dashboard overview](docs/screenshots/overview-daylight.png)
 
 ## What it does
 
@@ -35,42 +35,43 @@ inside the page.
 
 ## Install
 
-1. Grab the latest `ghetto-blocker-Setup-<version>.exe` from
+1. Download `ghetto-blocker-Setup-<version>.exe` from
    [Releases](https://github.com/exploitz/ghetto-blocker/releases) and run it.
-   It installs to Program Files and lives in the system tray.
-2. Trust the certificate. On first run the proxy generates its own
-   certificate authority; a tray notification offers to install it (needs
-   admin). This is what lets the proxy see inside HTTPS. See
-   [Security](#security) before you do this.
-3. Start your browser through the proxy:
+   Windows SmartScreen will say "Windows protected your PC" because the
+   installer isn't code-signed; click **More info → Run anyway**. The installer
+   asks for admin rights (it installs to Program Files) and starts the app.
+2. The dashboard opens with a three-step checklist. Work through it:
 
-   ```
-   chrome.exe --proxy-server="http://127.0.0.1:8080" --disable-quic
-   ```
+   ![First-run checklist](docs/screenshots/setup-daylight.png)
 
-   Or skip the flags: the dashboard's overview has a **Launch a browser**
-   card (and the tray menu has the same) that starts any installed Chromium
-   browser with the right flags, and tells you if it's already running
-   without them. A browser started without the flags is unfiltered, and a
-   running browser ignores the flags of a second launch, so quit it first. Don't set the proxy
-   system-wide: non-HTTP apps can't go through an HTTP proxy and will break.
-   Loopback addresses bypass the proxy by default, which is what the
-   dashboard and the extension rely on; don't add `<-loopback>` to a bypass
-   list, that flag does the opposite of what it looks like.
+   - **Trust the certificate.** One admin prompt. This is what lets the proxy
+     see inside HTTPS; read [Security](#security) if you want to know exactly
+     what that means.
+   - **Start your browser through the proxy.** Click your browser in the
+     checklist. If it's already running, quit it first: a running browser
+     ignores the flags of a second launch and stays unfiltered.
+   - **Load the extension.** In the browser, open `chrome://extensions` (or
+     `vivaldi://extensions`), turn on Developer mode, click Load unpacked, and
+     pick the folder the checklist shows (there's an Open folder button).
 
-   If your browser has its own ad blocker (Vivaldi and Brave do), turn it
-   off. Two blockers double the work and make it impossible to tell which
-   one did what.
+That's it. The app lives in the tray; the dashboard is at
+`http://127.0.0.1:8081` or by double-clicking the tray icon.
 
-   `--disable-quic` matters. Chromium speaks HTTP/3 over UDP when it can,
-   and a TCP proxy can't intercept that. (You can also disable QUIC under
-   `chrome://flags`.)
-4. Load the extension: open `chrome://extensions` (or `vivaldi://extensions`),
-   turn on Developer mode, click Load unpacked, and pick
-   `C:\Program Files\ghetto-blocker\resources\extension`. Then reload any
-   open tabs.
+If you'd rather manage the browser yourself, start it with:
 
-Open `http://127.0.0.1:8081` for the dashboard, or double-click the tray icon.
+```
+chrome.exe --proxy-server="http://127.0.0.1:8080" --disable-quic
+```
+
+Don't set the proxy system-wide: non-HTTP apps can't go through an HTTP proxy
+and will break. `--disable-quic` matters: Chromium speaks HTTP/3 over UDP when
+it can, and a TCP proxy can't intercept that. Loopback addresses bypass the
+proxy by default; don't add `<-loopback>` to a bypass list, that flag does the
+opposite of what it looks like.
+
+If your browser has its own ad blocker (Vivaldi and Brave do), turn it off.
+Two blockers double the work and make it impossible to tell which one did
+what.
 
 To check it's working from a terminal:
 
@@ -79,6 +80,9 @@ curl -x http://127.0.0.1:8080 --cacert "%USERPROFILE%\.ghetto-blocker\ca\certs\c
 ```
 
 A blocked request comes back as `200 0`.
+
+No network on first start? The app starts anyway with empty lists and keeps
+retrying the download; the rail says "not downloaded yet" until it succeeds.
 
 ## How it works
 
@@ -115,14 +119,14 @@ Blocked requests get an empty `200` (pages don't error out) with an
 | **Sites** | Allowlist (not filtered) and bypass hosts (not intercepted at all) |
 | **Vault** | Everything AdNauseam has clicked |
 
-Themes: Terminal, Cyberpunk, Daylight. The window's title bar follows the
-theme.
+Themes: Daylight (default), Cyberpunk, Terminal. The window's title bar
+follows the theme.
 
-| Daylight | Terminal |
+| Cyberpunk | Terminal |
 |---|---|
-| ![Daylight theme](docs/screenshots/overview-daylight.png) | ![Terminal theme](docs/screenshots/overview-terminal.png) |
+| ![Cyberpunk theme](docs/screenshots/overview-cyberpunk.png) | ![Terminal theme](docs/screenshots/overview-terminal.png) |
 
-![Rules editor](docs/screenshots/rules-cyberpunk.png)
+![Rules editor](docs/screenshots/rules-daylight.png)
 
 ## The extension
 
@@ -149,7 +153,7 @@ links. Each one is announced to the control server and fetched in the
 background after a random delay, at most eight a minute, with cookies, so it
 registers as a click. Pages use more bandwidth in this mode.
 
-![Vault](docs/screenshots/vault-cyberpunk.png)
+![Vault](docs/screenshots/vault-daylight.png)
 
 ## Updates
 
@@ -178,6 +182,8 @@ Read this part.
 - The control server listens on loopback only and requires an
   `X-GhettoBlocker` header on anything that changes state, so a web page
   can't reconfigure it.
+- **Uninstalling removes the CA** from the trust store and deletes its private
+  key and the cached filter lists. Settings and your rules are kept.
 
 ## Troubleshooting
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="terminal">
+<html lang="en" data-theme="daylight">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -65,6 +65,31 @@
          OVERVIEW
          ============================================================ -->
     <section class="view active" id="view-overview">
+
+      <div class="card setup-card" id="setupCard" hidden>
+        <div class="card-head">
+          <h3>Finish setting up</h3>
+          <span class="sub">three things, then you never think about it again</span>
+          <button class="chip" id="btnHideSetup" title="Hide until something changes">hide</button>
+        </div>
+        <ol class="setup-steps">
+          <li id="stepCa">
+            <span class="status"></span>
+            <div class="text"><b>Trust the certificate</b><span class="detail">Needed to filter HTTPS. Windows will ask for admin once.</span></div>
+            <button id="btnInstallCa">Install certificate</button>
+          </li>
+          <li id="stepBrowser">
+            <span class="status"></span>
+            <div class="text"><b>Start your browser through the proxy</b><span class="detail">A browser started any other way is unfiltered.</span></div>
+            <div class="browser-buttons compact" id="setupBrowserButtons"></div>
+          </li>
+          <li id="stepExt">
+            <span class="status"></span>
+            <div class="text"><b>Load the extension</b><span class="detail">In the browser: <code>chrome://extensions</code> → Developer mode → Load unpacked → pick the folder below.</span><code class="path" id="extensionPath"></code></div>
+            <div class="row-actions"><button id="btnOpenExtDir">Open folder</button><button id="btnCopyExtDir">Copy path</button></div>
+          </li>
+        </ol>
+      </div>
 
       <div class="counters">
         <div class="counter"><span id="cntBlocked">0</span><label>blocked</label></div>

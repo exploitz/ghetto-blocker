@@ -56,6 +56,29 @@ export interface Updates {
   install?: () => void;
 }
 
+/** First-run checklist state; the Electron layer fills in what only it can know. */
+export interface SetupState {
+  /** CA trusted in the Windows root store; null when unknown (headless). */
+  caTrusted: boolean | null;
+  /** First non-loopback request seen by the proxy this session (epoch ms). */
+  trafficSeenAt: number | null;
+  /** Last time the extension called the control server (epoch ms, persisted). */
+  extensionSeenAt: number | null;
+  /** Where the unpacked extension lives, for "load unpacked". */
+  extensionDir: string;
+  /** Installed by electron/main.ts: run the elevated CA install and re-check. */
+  installCa?: () => Promise<void>;
+  /** Installed by electron/main.ts: reveal the extension folder in Explorer. */
+  openExtensionDir?: () => void;
+}
+
+/** Filter-list freshness, plus the error when the last download failed. */
+export interface ListsState {
+  builtAt: number;
+  /** Set while running on empty engines because the lists could not be downloaded. */
+  error?: string;
+}
+
 /** Combined result of getCosmeticsFilters from base + user engines. */
 export interface CosmeticsResult {
   styles: string;
@@ -104,6 +127,10 @@ export interface RuntimeContext {
   subscribeSettings(listener: (settings: Settings) => void): () => void;
   /** When the filter lists currently in use were downloaded (epoch ms). */
   listsBuiltAt(): number;
+  /** List freshness and download error, for the dashboard. */
+  lists: ListsState;
+  /** First-run checklist state. */
+  setup: SetupState;
   /**
    * Re-download the filter lists and swap the engines in live. Concurrent
    * calls share one download. Resolves with the new build time.
@@ -173,6 +200,10 @@ interface CreateRuntimeContextOptions {
   version?: string;
   /** Port the filtering proxy listens on; defaults to 8080. */
   proxyPort?: number;
+  /** Set when the engines are empty stand-ins because the list download failed. */
+  listsError?: string;
+  /** Where the unpacked extension lives; defaults to <cwd>/extension. */
+  extensionDir?: string;
   settings: Settings;
   stats: Stats;
 }
@@ -185,6 +216,8 @@ export function createRuntimeContext({
   rebuildEngines,
   version = 'dev',
   proxyPort = 8080,
+  listsError,
+  extensionDir = `${process.cwd()}/extension`,
   settings: initialSettings,
   stats,
 }: CreateRuntimeContextOptions): RuntimeContext {
@@ -331,6 +364,8 @@ export function createRuntimeContext({
     return builtAt;
   }
 
+  const lists: ListsState = listsError ? { builtAt, error: listsError } : { builtAt };
+
   function updateLists(): Promise<number> {
     if (inflightUpdate) return inflightUpdate;
     if (!rebuildEngines) return Promise.reject(new Error('list updates are not available'));
@@ -339,13 +374,26 @@ export function createRuntimeContext({
         baseEngine = engines.base;
         privacyEngine = engines.privacy;
         builtAt = engines.builtAt;
+        lists.builtAt = builtAt;
+        delete lists.error;
         return builtAt;
+      })
+      .catch((err: unknown) => {
+        lists.error = err instanceof Error ? err.message : String(err);
+        throw err;
       })
       .finally(() => {
         inflightUpdate = null;
       });
     return inflightUpdate;
   }
+
+  const setup: SetupState = {
+    caTrusted: null,
+    trafficSeenAt: null,
+    extensionSeenAt: settings.extensionSeenAt ?? null,
+    extensionDir,
+  };
 
   const updates: Updates = {
     status: { state: 'unavailable', message: 'not available in this mode' },
@@ -360,6 +408,8 @@ export function createRuntimeContext({
     version,
     proxyPort,
     updates,
+    lists,
+    setup,
     matchRequest,
     getCosmetics,
     setUserRules,

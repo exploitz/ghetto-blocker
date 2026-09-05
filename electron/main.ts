@@ -70,6 +70,11 @@ const DASHBOARD_DIR = app.isPackaged
   ? join(process.resourcesPath, 'public', 'dashboard')
   : join(__dirname, '..', 'public', 'dashboard');
 
+/** Unpacked extension, bundled as an extraResource (the "load unpacked" folder). */
+const EXTENSION_DIR = app.isPackaged
+  ? join(process.resourcesPath, 'extension')
+  : join(__dirname, '..', 'extension');
+
 /** install-ca.ps1 bundled as an extraResource so Electron can invoke it. */
 const CA_SCRIPT = app.isPackaged
   ? join(process.resourcesPath, 'scripts', 'install-ca.ps1')
@@ -178,6 +183,27 @@ function installCa(): void {
   ]);
 }
 
+/** Re-check trust until it flips or the user gives up on the UAC prompt (90 s). */
+async function refreshCaTrust(ctx: BootstrapResult['ctx'], waitForChange = false): Promise<void> {
+  const before = ctx.setup.caTrusted;
+  for (let i = 0; i < (waitForChange ? 30 : 1); i++) {
+    ctx.setup.caTrusted = await isCaTrusted();
+    if (!waitForChange || ctx.setup.caTrusted !== before) break;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+}
+
+/** Hooks the dashboard's setup checklist calls through the control server. */
+function installSetupHooks(ctx: BootstrapResult['ctx']): void {
+  ctx.setup.installCa = async () => {
+    installCa();
+    await refreshCaTrust(ctx, true);
+  };
+  ctx.setup.openExtensionDir = () => {
+    void shell.openPath(EXTENSION_DIR);
+  };
+}
+
 // ---- Tray ---------------------------------------------------------------
 
 function buildTrayMenu(): ReturnType<typeof Menu.buildFromTemplate> {
@@ -212,7 +238,13 @@ function buildTrayMenu(): ReturnType<typeof Menu.buildFromTemplate> {
       },
     },
     { type: 'separator' },
-    { label: 'Install CA certificate...', click: installCa },
+    {
+      label: 'Install CA certificate...',
+      click: () => {
+        if (ctx) void ctx.setup.installCa?.();
+        else installCa();
+      },
+    },
     ctx?.updates.status.state === 'ready'
       ? { label: `Restart to update to ${ctx.updates.status.version ?? 'new version'}`, click: installUpdate }
       : {
@@ -299,7 +331,7 @@ app.whenReady()
 
     // Start the proxy + control server.
     try {
-      booted = await bootstrap({ dashboardDir: DASHBOARD_DIR, version: app.getVersion() });
+      booted = await bootstrap({ dashboardDir: DASHBOARD_DIR, version: app.getVersion(), extensionDir: EXTENSION_DIR });
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       const msg =
@@ -330,15 +362,21 @@ app.whenReady()
       applyWindowTheme(settings.theme);
     });
 
-    // CA check (best-effort, Windows-only).
-    isCaTrusted()
-      .then((trusted) => {
-        if (!trusted && Notification.isSupported()) {
+    // First-run setup: the dashboard's checklist drives the CA install and
+    // the extension folder; open the dashboard when setup is incomplete so a
+    // new user is not left staring at a tray icon.
+    installSetupHooks(booted.ctx);
+    const ctx = booted.ctx;
+    refreshCaTrust(ctx)
+      .then(() => {
+        const incomplete = !ctx.setup.caTrusted || ctx.setup.extensionSeenAt === null;
+        if (incomplete) showDashboard();
+        if (!ctx.setup.caTrusted && Notification.isSupported()) {
           new Notification({
             title: 'ghetto-blocker',
-            body: 'CA certificate not trusted. Click to install (requires admin).',
+            body: 'Setup is not finished: the certificate is not trusted yet. Open the dashboard to fix it.',
           })
-            .on('click', installCa)
+            .on('click', showDashboard)
             .show();
         }
       })

@@ -46,6 +46,10 @@ export function createProxy(ctx: RuntimeContext): { proxy: Proxy } {
       }
     }
 
+    if (ctx.setup.trafficSeenAt === null && !/^(127\.0\.0\.1|localhost|\[::1\])(:|$)/.test(host)) {
+      ctx.setup.trafficSeenAt = Date.now();
+    }
+
     // Globally paused: pass everything through unfiltered.
     if (settings.paused) return callback();
 

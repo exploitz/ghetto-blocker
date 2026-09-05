@@ -44,7 +44,7 @@ describe('loadSettings', () => {
     expect(s.injectCosmetics).toBe(true);
     expect(s.stripCSP).toBe(true);
     expect(s.antiAnalytics).toBe(true);
-    expect(s.theme).toBe('terminal');
+    expect(s.theme).toBe('daylight');
     expect(s.controlPort).toBe(8081);
     expect(s.autostart).toBe(false);
     expect(Array.isArray(s.allowlist)).toBe(true);

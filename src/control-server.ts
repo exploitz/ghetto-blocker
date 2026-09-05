@@ -164,11 +164,34 @@ export async function route(
       settings: ctx.settings,
       totals: ctx.stats.totals,
       since: ctx.stats.since,
-      lists: { builtAt: ctx.listsBuiltAt() },
+      lists: ctx.lists,
       version: ctx.version,
       update: ctx.updates.status,
+      setup: {
+        caTrusted: ctx.setup.caTrusted,
+        trafficSeenAt: ctx.setup.trafficSeenAt,
+        extensionSeenAt: ctx.setup.extensionSeenAt,
+        extensionDir: ctx.setup.extensionDir,
+        canAct: typeof ctx.setup.installCa === 'function',
+      },
     };
     return { status: 200, body };
+  }
+
+  if (m === 'POST' && pathname === '/api/setup/install-ca') {
+    if (!ctx.setup.installCa) {
+      return { status: 409, body: { error: 'run scripts\\install-ca.ps1 as administrator (headless mode)' } };
+    }
+    await ctx.setup.installCa();
+    return { status: 200, body: { caTrusted: ctx.setup.caTrusted } };
+  }
+
+  if (m === 'POST' && pathname === '/api/setup/open-extension-dir') {
+    if (!ctx.setup.openExtensionDir) {
+      return { status: 409, body: { error: 'not available in headless mode', extensionDir: ctx.setup.extensionDir } };
+    }
+    ctx.setup.openExtensionDir();
+    return { status: 200, body: { ok: true, extensionDir: ctx.setup.extensionDir } };
   }
 
   if (m === 'GET' && pathname === '/api/browsers') {
@@ -292,6 +315,11 @@ export async function route(
     const lifecycle = body.lifecycle ?? 'start';
     if (lifecycle !== 'start' && lifecycle !== 'dom-update') {
       return { status: 400, body: { error: 'invalid lifecycle field' } };
+    }
+    if (ctx.setup.extensionSeenAt === null) {
+      // First contact from the extension: remember it (persisted) for the setup checklist.
+      ctx.setup.extensionSeenAt = Date.now();
+      void ctx.updateSettings({ extensionSeenAt: ctx.setup.extensionSeenAt }).catch(() => { /* best-effort */ });
     }
     const classes = body.classes ?? [];
     const ids = body.ids ?? [];
